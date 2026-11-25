@@ -1,0 +1,20 @@
+{% extends "base.html" %}
+{% block title %}유출본 검사 · CodeVault{% endblock %}
+{% block content %}
+<h1>유출본 검사</h1>
+<p class="sub">밖에서 발견된 파일(.js, .html, .zip)을 올리면 남아 있는 지문 층을 읽어 어느 배포 경로에서 나왔는지 역조회합니다.
+  서명(HMAC 태그)이 검증될 때만 협력사를 지목하고, 그렇지 않으면 아무도 지목하지 않습니다.</p>
+{% if err %}<div class="err">파일이 비어 있습니다.</div>{% endif %}
+<div class="card">
+  <form method="post" action="/leak" enctype="multipart/form-data">
+    <label>유출 의심 파일</label>
+    <input type="file" name="file" required>
+    <p><button>검사</button></p>
+  </form>
+</div>
+<div class="card">
+  <h2>유출본 만들기 (데모)</h2>
+  <p class="muted">받은 빌드 zip 으로 유출을 흉내 냅니다. 공격 종류: <span class="mono">strip</span>(주석 제거) · <span class="mono">terser</span>(minify+mangle) · <span class="mono">edit</span>(수동 편집) · <span class="mono">obfuscate</span>(강한 난독화)</p>
+  <pre class="mono">node tools/make-leak.js 받은빌드.zip terser -o leaked.js</pre>
+</div>
+{% endblock %}

@@ -1,0 +1,23 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>{% block title %}CodeVault{% endblock %}</title>
+<link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+<header><div class="wrap">
+  <div class="brand">CodeVault<small>배포 경로 지문</small></div>
+  <nav>
+    <a href="/">대시보드</a>
+    <a href="/jobs/new">새 배포 빌드</a>
+    <a href="/leak">유출본 검사</a>
+  </nav>
+  <span class="muted" style="margin-left:auto;font-size:13px">{{ cfg.ORG_NAME }} · {{ cfg.STORAGE_MODE }}/{{ cfg.PROCESSOR_MODE }}</span>
+</div></header>
+<main class="wrap">
+{% block content %}{% endblock %}
+</main>
+</body>
+</html>

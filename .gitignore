@@ -1,0 +1,10 @@
+node_modules/
+data/
+games/dist/
+infra/config.env
+.venv/
+__pycache__/
+*.pyc
+*.log
+.env
+leaked-*.js

@@ -1,0 +1,66 @@
+{% extends "base.html" %}
+{% block title %}새 배포 빌드 · CodeVault{% endblock %}
+{% block content %}
+<h1>새 배포 빌드</h1>
+<p class="sub">게임 패키지(zip: index.html · game.js · manifest.json)를 올리면 선택한 협력사마다 다른 지문이 들어간 빌드를 만듭니다.
+  파일은 서버를 거치지 않고 presigned URL 로 저장소(S3 <span class="mono">uploads/</span>)에 바로 올라갑니다.</p>
+
+{% if not customers %}<div class="err">먼저 <a href="/">대시보드</a>에서 협력사를 등록하세요.</div>{% endif %}
+
+<div class="grid">
+  <div class="card">
+    <h2>1. 게임 패키지</h2>
+    {% if samples %}
+    <label>샘플 게임 (픽셀웍스 오리지널)</label>
+    <select id="sample">
+      <option value="">— 직접 파일 선택 —</option>
+      {% for s in samples %}<option value="{{ s }}">{{ s }}</option>{% endfor %}
+    </select>
+    {% endif %}
+    <label>또는 zip 파일</label>
+    <input type="file" id="file" accept=".zip">
+  </div>
+  <div class="card">
+    <h2>2. 받아 갈 협력사</h2>
+    <div class="checks">
+      {% for c in customers %}
+      <label><input type="checkbox" name="cust" value="{{ c.id }}" checked> {{ c.name }} <span class="muted">{{ c.role }}</span></label>
+      {% endfor %}
+    </div>
+    <p><button id="go" {% if not customers %}disabled{% endif %}>업로드하고 빌드 생성</button></p>
+  </div>
+</div>
+<div class="card"><h2>진행</h2><div id="log" class="log">대기 중</div></div>
+
+<script>
+const $ = (s) => document.querySelector(s);
+const log = (m) => { $("#log").textContent += "\n" + new Date().toLocaleTimeString() + "  " + m; };
+async function getBlob() {
+  const s = $("#sample") && $("#sample").value;
+  if (s) { const r = await fetch("/samples/" + encodeURIComponent(s)); return { blob: await r.blob(), name: s }; }
+  const f = $("#file").files[0];
+  if (!f) throw new Error("파일을 고르세요");
+  return { blob: f, name: f.name };
+}
+$("#go").onclick = async () => {
+  $("#go").disabled = true; $("#log").textContent = "시작";
+  try {
+    const ids = [...document.querySelectorAll("input[name=cust]:checked")].map((e) => +e.value);
+    const { blob, name } = await getBlob();
+    log(`패키지 ${name} (${blob.size.toLocaleString()} B)`);
+    let r = await fetch("/api/jobs", { method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ customer_ids: ids, filename: name }) });
+    const job = await r.json();
+    if (!r.ok) throw new Error(job.detail || r.status);
+    log(`작업 ${job.job_id} 생성, mark_id 할당: ${job.marks.map((m) => m.label + "→" + m.mark_id).join(", ")}`);
+    log(`presigned ${job.upload.method} → ${job.upload.url.split("?")[0]}`);
+    r = await fetch(job.upload.url, { method: job.upload.method, headers: job.upload.headers, body: blob });
+    if (!r.ok) throw new Error("업로드 실패 HTTP " + r.status + " (S3 CORS 설정 확인)");
+    log("업로드 완료");
+    r = await fetch(`/api/jobs/${job.job_id}/uploaded`, { method: "POST" });
+    log(job.processor === "lambda" ? "S3 이벤트 → Lambda 처리 대기" : "EC2 inline 워커로 처리 시작");
+    location.href = "/jobs/" + job.job_id;
+  } catch (e) { log("오류: " + e.message); $("#go").disabled = false; }
+};
+</script>
+{% endblock %}

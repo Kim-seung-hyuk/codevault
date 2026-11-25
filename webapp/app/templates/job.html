@@ -1,0 +1,54 @@
+{% extends "base.html" %}
+{% block title %}작업 {{ j.id }} · CodeVault{% endblock %}
+{% block content %}
+<h1>작업 <span class="mono">{{ j.id }}</span></h1>
+<p class="sub">{{ j.filename }} · 생성 {{ j.created_at.strftime('%Y-%m-%d %H:%M:%S') }} UTC</p>
+
+<div class="card">
+  <div class="kv">
+    <div>상태</div><div><b id="status" class="st-{{ j.status }}">{{ j.status }}</b> <span id="elapsed" class="muted"></span></div>
+    <div>게임</div><div id="game">{{ j.game_title or "—" }}</div>
+    <div>검증</div><div id="analysis" class="mono muted">—</div>
+    <div>오류</div><div id="error" class="bad">{{ j.error or "" }}</div>
+  </div>
+</div>
+
+<div class="card">
+  <h2>협력사별 빌드</h2>
+  <table id="builds">
+    <tr><th>협력사</th><th>mark_id</th><th>SHA-256</th><th>상태</th><th></th></tr>
+  </table>
+  <p id="playlink" style="display:none"><a class="btn" href="/jobs/{{ j.id }}/play">세 빌드 나란히 플레이</a></p>
+</div>
+
+<script>
+const jobId = "{{ j.id }}";
+const esc = (s) => String(s ?? "").replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
+function render(d) {
+  const st = document.getElementById("status");
+  st.textContent = d.status; st.className = "st-" + d.status;
+  document.getElementById("game").textContent = d.game_title || "—";
+  document.getElementById("error").textContent = d.error || "";
+  if (d.elapsed_ms != null) document.getElementById("elapsed").textContent = `(${d.elapsed_ms} ms)`;
+  if (d.analysis) document.getElementById("analysis").textContent = Object.entries(d.analysis)
+    .map(([f, a]) => `${f}: 함수 ${a.functions}개, L2 용량 ${a.capacityBits}비트, 요구사항 ${a.ok ? "충족" : "미충족"}`).join(" / ");
+  const rows = d.builds.map((b) => `<tr>
+    <td>${esc(b.customer)} <span class="muted">${esc(b.role)}</span></td>
+    <td class="mono">${b.mark_id}</td>
+    <td class="mono">${b.sha256 ? esc(b.sha256.slice(0, 16)) + "…" : "—"}</td>
+    <td>${b.revoked ? '<span class="bad">공급 중단</span>' : b.ready ? '<span class="ok">준비됨</span>' : '<span class="muted">대기</span>'}</td>
+    <td>${b.ready && !b.revoked ? `<a href="${b.download_url}">zip 다운로드</a> · <a href="${b.play_url}" target="_blank">플레이</a>` : ""}
+        <form method="post" action="/builds/${b.mark_id}/revoke" style="display:inline"><input type="hidden" name="back" value="/jobs/${jobId}">
+        <button class="ghost" style="padding:2px 8px;font-size:12px">${b.revoked ? "공급 재개" : "공급 중단"}</button></form></td></tr>`).join("");
+  document.getElementById("builds").innerHTML = "<tr><th>협력사</th><th>mark_id</th><th>SHA-256</th><th>상태</th><th></th></tr>" + rows;
+  document.getElementById("playlink").style.display = d.status === "DONE" ? "" : "none";
+  return d.status === "DONE" || d.status === "FAILED";
+}
+async function poll() {
+  const r = await fetch("/api/jobs/" + jobId);
+  if (r.ok && render(await r.json())) return;
+  setTimeout(poll, 1000);
+}
+render({{ jd | tojson }}) || setTimeout(poll, 500);
+</script>
+{% endblock %}

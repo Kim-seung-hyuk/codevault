@@ -1,0 +1,13 @@
+{
+  "Version": "2012-10-17",
+  "Statement": [
+    { "Sid": "ReadInputs", "Effect": "Allow", "Action": ["s3:GetObject"],
+      "Resource": ["arn:aws:s3:::__BUCKET__/uploads/*", "arn:aws:s3:::__BUCKET__/jobs/*"] },
+    { "Sid": "WriteOutputs", "Effect": "Allow", "Action": ["s3:PutObject"],
+      "Resource": ["arn:aws:s3:::__BUCKET__/outputs/*", "arn:aws:s3:::__BUCKET__/failed/*"] },
+    { "Sid": "ListJobsForHead404", "Effect": "Allow", "Action": ["s3:ListBucket"], "Resource": "arn:aws:s3:::__BUCKET__",
+      "Condition": { "StringLike": { "s3:prefix": ["jobs/*"] } } },
+    { "Sid": "Logs", "Effect": "Allow", "Action": ["logs:CreateLogGroup", "logs:CreateLogStream", "logs:PutLogEvents"],
+      "Resource": "arn:aws:logs:__REGION__:__ACCOUNT__:*" }
+  ]
+}

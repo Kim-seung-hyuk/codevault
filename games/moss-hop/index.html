@@ -1,0 +1,19 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Moss Hop</title>
+<style>
+  html, body { margin: 0; height: 100%; background: #000; }
+  body { display: flex; flex-direction: column; align-items: center; justify-content: center; font: 12px system-ui, "Malgun Gothic", sans-serif; color: #888; }
+  canvas { image-rendering: pixelated; image-rendering: crisp-edges; width: min(96vw, calc(88vh * 192 / 144)); aspect-ratio: 192 / 144; outline: none; }
+  p { margin: 6px 0 0; }
+</style>
+</head>
+<body>
+<canvas id="game" tabindex="0"></canvas>
+<p>←/→ 이동, ↑/Space/Z 점프, R 재시작</p>
+<script src="game.js"></script>
+</body>
+</html>

@@ -1,0 +1,60 @@
+{% extends "base.html" %}
+{% block content %}
+<h1>대시보드</h1>
+<p class="sub">재배포용 게임 빌드에 협력사별 보이지 않는 지문을 넣고, 유출본이 나오면 어느 배포 경로에서 나왔는지 역조회합니다.</p>
+{% if err %}<div class="err">{{ err }}</div>{% endif %}
+
+<div class="grid">
+  <div class="card">
+    <h2>협력사 (배포 경로)</h2>
+    <table>
+      <tr><th>#</th><th>이름</th><th>역할</th><th>NDA</th><th>빌드</th></tr>
+      {% for c in customers %}
+      <tr><td>{{ c.id }}</td><td>{{ c.name }}</td><td>{{ c.role }}</td><td class="mono">{{ c.nda_ref }}</td><td>{{ c.marks|length }}</td></tr>
+      {% else %}
+      <tr><td colspan="5" class="muted">아직 없음 — 오른쪽에서 등록</td></tr>
+      {% endfor %}
+    </table>
+  </div>
+  <div class="card">
+    <h2>협력사 등록</h2>
+    <form method="post" action="/customers">
+      <label>이름</label><input type="text" name="name" required placeholder="예: 현지화 업체 B">
+      <label>역할</label><input type="text" name="role" placeholder="퍼블리셔 / 현지화 / 스트리머">
+      <label>연락처</label><input type="text" name="contact" placeholder="담당자 이메일">
+      <label>NDA 문서 번호</label><input type="text" name="nda_ref" placeholder="NDA-2026-002">
+      <p><button>등록</button></p>
+    </form>
+  </div>
+</div>
+
+<div class="card">
+  <h2>최근 작업</h2>
+  <table>
+    <tr><th>작업</th><th>게임</th><th>상태</th><th>빌드</th><th>생성</th><th></th></tr>
+    {% for j in jobs %}
+    <tr>
+      <td class="mono"><a href="/jobs/{{ j.id }}">{{ j.id }}</a></td>
+      <td>{{ j.game_title or j.filename }}</td>
+      <td class="st-{{ j.status }}">{{ j.status }}</td>
+      <td>{% for m in j.marks %}<span class="chip">{{ m.customer.name }}</span> {% endfor %}</td>
+      <td class="muted">{{ j.created_at.strftime('%m-%d %H:%M') }}</td>
+      <td>{% if j.status == 'DONE' %}<a href="/jobs/{{ j.id }}/play">나란히 플레이</a>{% endif %}</td>
+    </tr>
+    {% else %}
+    <tr><td colspan="6" class="muted">아직 없음 — <a href="/jobs/new">새 배포 빌드</a></td></tr>
+    {% endfor %}
+  </table>
+</div>
+
+<div class="card">
+  <h2>데모 순서</h2>
+  <ol class="steps">
+    <li>협력사 3곳 등록 (퍼블리셔 A · 현지화 업체 B · 스트리머 C)</li>
+    <li>새 배포 빌드 → 샘플 게임 선택 → A/B/C 체크 → 업로드</li>
+    <li>작업 화면의 “나란히 플레이”에서 세 빌드가 똑같이 동작하는지 확인</li>
+    <li>B 빌드 zip 다운로드 → <span class="mono">node tools/make-leak.js &lt;zip&gt; terser</span> 로 유출본 생성</li>
+    <li>유출본 검사에 업로드 → “B 경로, 서명 검증 통과”</li>
+  </ol>
+</div>
+{% endblock %}

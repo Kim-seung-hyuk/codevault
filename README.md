@@ -1,0 +1,243 @@
+# CodeVault — 재배포 코드의 배포 경로 지문
+
+고객사(예: 인디 스튜디오 **픽셀웍스**)가 재배포용 코드(여기서는 HTML5 픽셀 게임)를 올리면,
+받아 갈 **협력사마다 보이지 않는 워터마크**를 넣은 빌드를 돌려준다.
+나중에 유출본이 발견되면 그 파일만으로 **어느 협력사 경로에서 샜는지** 역조회한다.
+
+> RE(역공학)를 막는 방패가 아니라 **지문**이다. 식별 대상은 RE 를 한 사람이 아니라
+> "그 복사본을 받아 간 고객사(배포 경로)"다. 서명(HMAC)이 검증될 때만 지목하고, 아니면 아무도 지목하지 않는다.
+
+---
+
+## 1. 구성
+
+```
+games/            오리지널 픽셀 게임 3개 (canvas + 순수 JS, 외부 라이브러리 없음)
+  comet-shower/   낙하물 피하기       — 함수 12개
+  lantern-range/  표적 맞추기         — 함수 11개
+  moss-hop/       한 화면 점프 플랫포머 — 함수 10개
+                  각 폴더: index.html · game.js · manifest.json
+lambda/           워터마크 Lambda (Node 20) — S3 uploads/ 이벤트로 실행
+  index.js        핸들러: 협력사별 빌드 → outputs/, 실패 → failed/, EC2 콜백
+  extract-cli.js  유출본 추출 CLI (EC2 웹앱이 subprocess 로 호출, 같은 lib 사용)
+  local-invoke.js S3 이벤트를 흉내 내 핸들러 실행 (로컬 데모 / IAM 없을 때 대안)
+  lib/            watermark.js(4층 삽입·추출) · pkg.js(zip) · storage.js(S3|로컬) · callback.js(HMAC 서명)
+webapp/           EC2 웹 + API (FastAPI, Stateless) + PostgreSQL
+infra/            AWS CLI 스크립트, EC2 부트스트랩, systemd 유닛, IAM 정책
+tests/            공격 매트릭스(run-matrix.js), 게임 스모크, 데모 E2E
+tools/            check-game(요구사항 검사) · pack-games(zip) · make-leak(유출본 생성)
+poc/              이전 PoC 원본 (watermark.js, attacks.js, run-matrix.js, RESULTS.md)
+RESULTS.md        최신 매트릭스 결과 (자동 생성)
+```
+
+### 아키텍처
+
+```
+ 브라우저 ──(1) POST /api/jobs──────────▶ EC2 t3.small: FastAPI ── PostgreSQL(localhost)
+    │      ◀─ presigned PUT URL ────────      │  customers / jobs / marks
+    │                                         │  (2) jobs/<id>/spec.json 기록
+    └─(3) PUT zip ──▶ S3 uploads/<id>/game.zip
+                          │ ObjectCreated (prefix uploads/, suffix .zip)
+                          ▼
+                     Lambda codevault-watermark  (비동기 재시도 2회)
+                          ├─ 성공 → S3 outputs/<id>/<mark>/files/*, *.zip  (수명주기로 만료)
+                          ├─ 실패 → S3 failed/<id>/error.json (+원본)
+                          └─(4) POST /api/internal/lambda-callback  (공유 비밀키 HMAC 서명)
+ 유출본 ──▶ POST /leak ──▶ EC2 가 node lambda/extract-cli.js 실행 ──▶ marks 조회 ──▶ 리포트
+```
+
+- Lambda 는 VPC 에 넣지 않고 DB 에 직접 붙지 않는다. 결과는 콜백으로만 EC2 에 알린다.
+- EC2 는 상태를 갖지 않는다(파일은 S3, 메타데이터는 PostgreSQL). 재배포해도 데이터가 남는다.
+- **실서비스 확장안(발표용, 미구현)**: S3 → SQS → Lambda 로 버퍼링·DLQ, RDS Multi-AZ, ALB + Auto Scaling, 페이로드 확장(8비트 → 32비트, ECC).
+
+### 테이블
+
+| 테이블 | 핵심 컬럼 | 비고 |
+|---|---|---|
+| `customers` | id, name, role, contact, nda_ref | 빌드를 받아 가는 협력사(배포 경로) |
+| `jobs` | id, status, created_at, upload_key, result | `(status, created_at)` 인덱스. `PENDING_UPLOAD → UPLOADED → PROCESSING → DONE/FAILED` |
+| `marks` | **mark_id PK** → customer_id, job_id, zip_key, sha256, revoked_at | mark_id(1~255)가 워터마크 페이로드. 빌드 1개당 1행 |
+
+### 워터마크 4층
+
+페이로드 = 8비트 `mark_id` + 8비트 `HMAC-SHA256(WM_SECRET, mark_id)` 태그 = 16비트 코드워드
+
+| 층 | 위치 | 용량 | 강점 / 약점 |
+|---|---|---|---|
+| L1 | zero-width 문자 주석 | 16비트 | 그대로 유출되면 즉시 식별 / 주석 제거에 소실 |
+| L2 | 최상위 함수 선언 순서 (Lehmer 순열) | 16비트 | 공백·주석 제거에 생존 / minify·함수 이동에 붕괴 |
+| L3 | `GAME_CONFIG` 키 순서 | 8비트(태그 없음) | 보조 단서 — 단독으로는 지목 근거로 쓰지 않음 |
+| L4 | `PALETTE` 8색 blue 하위 2비트 | 16비트 | **terser minify+mangle 에도 생존** / 색 변경에 손상 |
+
+판정 규칙: 태그가 검증된 층이 같은 mark 를 가리키면 `IDENTIFIED`
+(2층 이상 또는 1층+L3 일치 = **HIGH**, 1층 = **MEDIUM**). 층끼리 다른 mark 를 가리키면 `CONFLICT`, 그 밖은 `NO_RELIABLE_MARK`.
+웹앱은 추가로 mark 가 DB 에 등록된 빌드일 때만 협력사를 지목한다.
+
+### 게임 작성 규칙 (업로드 시 Lambda 가 검사)
+
+- 실제로 쓰이는 최상위 `function` 선언 10~12개, `(파라미터 수, 문장 수)` 지문이 모두 달라야 함
+- 키 8개짜리 `var GAME_CONFIG = {...}`, `'#rrggbb'` 8색 `var PALETTE = [...]`
+- 색 문자열은 PALETTE 에만 둔다 (다른 곳은 `PALETTE[i]` 참조)
+- `manifest.json` 의 `watermark.targets` 에 워터마크 넣을 JS 를 적는다
+- 검사: `npm run check`
+
+---
+
+## 2. 로컬 실행 (S3·Lambda 없이 로컬 폴더 모드)
+
+필요: Node 18+ (개발은 24), Python 3.9+.
+
+```powershell
+npm install
+npm run setup
+pip install -r webapp/requirements.txt
+```
+
+```powershell
+npm run dev
+```
+
+브라우저에서 http://localhost:8000 을 연다. 기본값은 `STORAGE_MODE=local`, `PROCESSOR_MODE=inline`, SQLite(`data/codevault.db`)다.
+`data/bucket/` 폴더가 S3 버킷 역할을 하고, presigned URL 은 HMAC 서명 URL(`/local-s3/...`)로 흉내 낸다.
+업로드가 끝나면 EC2 가 같은 Lambda 코드를 `node lambda/local-invoke.js` 로 실행하고, 콜백도 실제와 같은 HMAC 경로로 들어온다.
+
+게임만 따로 실행하려면 `games/<이름>/index.html` 을 브라우저로 열면 된다.
+
+### 테스트
+
+```powershell
+npm test
+```
+
+요구사항 검사, 게임 3개 × (원본·워터마크 빌드) 600프레임 스모크, 공격 매트릭스(게임 3 × 협력사 3 × 공격 5 + 오탐 검사)를 실행하고 `RESULTS.md` 를 갱신한다.
+
+```powershell
+npm run e2e
+```
+
+서버를 띄운 상태에서 데모 2~5장면과 7장면(난독화본 → 표식 없음)을 HTTP 로 끝까지 재현한다.
+
+현재 결과 요약(`RESULTS.md`):
+
+| 공격 | 정확 식별 (9개 빌드) | 오지목 |
+|---|---|---|
+| 그대로 / 주석·공백 제거 / terser minify+mangle | 9 / 9 / 9 | 0 |
+| beautify+수동 편집 | 3 (우연) | 0 |
+| 강한 난독화 | 0 | 0 |
+| 무표식 원본·무관한 JS·다른 게임 | 전부 거부 | — |
+
+표식 없는 파일을 무작위로 바꿔 넣었을 때 우연히 서명이 맞는 비율은 약 0.7%(이론값 2/256)이고, 이때 신뢰도는 모두 MEDIUM 이었다.
+그래서 리포트는 MEDIUM 을 "추가 증거와 함께 판단"으로 표시하고, 등록된 빌드가 아니면 지목하지 않는다.
+
+---
+
+## 3. 발표 데모 순서 (장면 2~5, 7)
+
+1. 대시보드에서 협력사 3곳을 등록한다: 퍼블리셔 A, 현지화 업체 B, 스트리머 C(NDA 번호 포함).
+2. **새 배포 빌드**에서 샘플 `moss-hop.zip` 을 고르고 A/B/C 를 체크한 뒤 업로드한다. 작업 화면에서 상태가 `DONE` 이 되고 빌드 3개가 생긴다.
+3. **세 빌드 나란히 플레이**에서 같은 게임이 똑같이 돌아가는 것을 보여 준다. mark 번호와 SHA-256 만 다르다.
+4. B 빌드의 **zip 다운로드**를 받은 뒤 유출본을 만든다.
+   ```powershell
+   node tools/make-leak.js "$HOME\Downloads\moss-hop-buildNN.zip" terser -o leaked.js
+   ```
+5. **유출본 검사**에 `leaked.js` 를 올린다. 결과는 "현지화 업체 B 경로, 서명 검증 통과"이고, 층별 표에는 L4 만 생존한 것이 보인다.
+6. (대응) 리포트의 권장 대응에서 **공급 중단**을 누르면 해당 빌드 다운로드가 410 으로 막힌다.
+7. (한계) `obfuscate` 로 만든 유출본은 "표식 없음 — 어느 협력사도 지목하지 않음"이 나온다.
+
+---
+
+## 4. 배포: 로컬 → GitHub → EC2, S3·Lambda 연동
+
+> 아래 단계는 AWS 리소스를 만들고 **비용이 발생**한다(EC2 t3.small 시간당 과금, S3·Lambda 는 데모 규모에서 소액).
+> 각 스크립트는 실행 전에 `[y/N]` 으로 다시 묻는다.
+
+### 4-1. GitHub
+
+```powershell
+git remote add origin https://github.com/<계정>/codevault.git
+```
+
+```powershell
+git push -u origin main
+```
+
+private 저장소라면 EC2 에서 clone 할 때 deploy key 나 토큰이 필요하다.
+
+### 4-2. 인프라 설정값
+
+AWS CLI 가 설정된 곳(로컬 Git Bash/WSL 또는 **AWS CloudShell**)에서 실행한다.
+
+```bash
+cp infra/config.env.example infra/config.env
+openssl rand -hex 24   # CALLBACK_SECRET 용
+openssl rand -hex 24   # WM_SECRET 용
+```
+
+`BUCKET`, `EC2_PUBLIC_URL`(탄력적 IP 권장), 비밀값 2개를 채운다.
+
+### 4-3. EC2 (t3.small, Amazon Linux 2023 또는 Ubuntu)
+
+1. 인스턴스를 만든다. 보안그룹 인바운드는 **22(내 IP)**, **80(0.0.0.0/0)** 두 개다. 80 은 Lambda 콜백이 인터넷 경유로 들어오기 때문에 열어야 한다. 5432 는 열지 않는다.
+2. 탄력적 IP 를 붙이고 그 주소를 `EC2_PUBLIC_URL` 에 적는다.
+3. SSH 로 접속해 부트스트랩을 실행한다. 스왑 1GB, PostgreSQL(localhost), Node 20, Python venv, systemd 를 설정한다.
+   ```bash
+   curl -fsSLO https://raw.githubusercontent.com/<계정>/codevault/main/infra/ec2-bootstrap.sh
+   sudo REPO_URL=https://github.com/<계정>/codevault.git BUCKET=<버킷> \
+        CALLBACK_SECRET=<config.env 값> WM_SECRET=<config.env 값> bash ec2-bootstrap.sh
+   ```
+   비밀값을 생략하면 새로 만들어 `/etc/codevault.env` 에 저장하고 출력한다. 그 값을 `infra/config.env` 에 옮겨 적는다.
+
+### 4-4. S3 → IAM → Lambda
+
+```bash
+bash infra/01-s3.sh       # 버킷, 퍼블릭 차단, 암호화, CORS, 수명주기(uploads 3일 / outputs 7일 / failed·jobs 30일)
+bash infra/02-iam.sh      # Lambda 실행 역할 + EC2 인스턴스 프로파일 (권한이 있을 때)
+aws ec2 associate-iam-instance-profile --instance-id i-xxxx --iam-instance-profile Name=codevault-ec2-profile
+bash infra/03-lambda.sh   # 패키징, 생성/갱신, 재시도 2회, AddPermission, uploads/*.zip 이벤트 알림
+```
+
+### 4-5. 확인과 이후 배포
+
+```bash
+curl http://<EC2_IP>/healthz                       # {"storage":"s3","processor":"lambda"}
+aws logs tail /aws/lambda/codevault-watermark --follow
+```
+
+코드를 고친 뒤에는 로컬에서 `git push` 하고, EC2 에서 `sudo bash /opt/codevault/infra/deploy.sh` 를 실행한다(git pull → 의존성 → 재시작).
+Lambda 코드가 바뀌었으면 `bash infra/03-lambda.sh` 를 다시 실행한다.
+
+---
+
+## 5. IAM 역할을 쓸 수 없을 때의 대안
+
+권한 상황에 따라 다음 중 하나를 고른다.
+
+| 상황 | 대안 |
+|---|---|
+| **기존 역할만 있음** (예: AWS Academy `LabRole`) | `config.env` 의 `LAMBDA_ROLE_ARN` 에 그 ARN 을 넣고 `02-iam.sh` 는 건너뛴다. EC2 에도 같은 계열 인스턴스 프로파일(`LabInstanceProfile`)을 붙인다. |
+| **EC2 인스턴스 프로파일 불가, IAM 사용자 키는 가능** | `infra/iam/ec2-policy.json` 권한만 가진 IAM 사용자를 만들고 그 키를 `/etc/codevault.env` 의 `AWS_ACCESS_KEY_ID/AWS_SECRET_ACCESS_KEY` 에 넣는다(권한 640, git 에 넣지 않음). boto3 가 자동으로 읽는다. |
+| **Lambda 실행 역할을 만들 수 없음** (Lambda 생성 불가) | `/etc/codevault.env` 에서 `PROCESSOR_MODE=inline` 으로 바꾸고 재시작한다. 브라우저가 업로드 완료를 알리면 EC2 가 **같은 Lambda 코드**를 `node lambda/local-invoke.js` 로 실행해 S3 `outputs/`·`failed/` 에 쓰고 같은 콜백 경로로 상태를 갱신한다. S3 이벤트 알림은 설정하지 않는다. 발표에서는 "이벤트 기반 Lambda 가 목표 구성이고, 권한 제약 때문에 같은 코드를 EC2 워커로 돌린다"고 설명한다. |
+| **S3 접근 자체가 막힘** | `STORAGE_MODE=local` 로 EC2 디스크(`/var/lib/codevault/bucket`)를 쓴다. 데모는 그대로 동작하지만 Stateless 는 아니다. |
+
+---
+
+## 6. 환경변수
+
+| 이름 | 기본값 | 설명 |
+|---|---|---|
+| `STORAGE_MODE` | `local` | `s3` 또는 `local` |
+| `PROCESSOR_MODE` | local 이면 `inline`, s3 이면 `lambda` | `lambda` 는 S3 이벤트, `inline` 은 EC2 에서 node 로 직접 처리 |
+| `BUCKET`, `AWS_REGION` | —, `ap-northeast-2` | S3 |
+| `DATABASE_URL` | `sqlite:///data/codevault.db` | EC2 는 `postgresql+psycopg2://codevault:...@127.0.0.1:5432/codevault` |
+| `CALLBACK_SECRET` | 개발용 값 | Lambda→EC2 콜백 HMAC (Lambda 환경변수와 같아야 함) |
+| `WM_SECRET` | 데모 기본값 | 워터마크 태그 키 (Lambda 와 EC2 가 같아야 함, **바꾸면 기존 빌드 추적 불가**) |
+| `PORT` | 8000 (EC2 는 80) | |
+
+---
+
+## 7. 한계 (발표 7장면)
+
+- 강한 난독화, 의도적 재작성, 함수 이동과 색 변경을 함께 하면 지문이 지워진다. 대신 잘못 지목하지 않는다.
+- 페이로드가 8비트라 동시에 발급할 수 있는 빌드는 255개다. 실서비스에서는 페이로드를 늘리고 ECC 를 붙여야 한다.
+- 태그가 8비트라 단일 층(MEDIUM) 식별은 우연 일치 확률이 약 1/256 이다. 계약 분쟁의 단독 증거로 쓰지 않고, 조사를 시작하는 근거로 쓴다.
+- 워터마크는 코드 열람이나 수정을 막지 못한다. 목적은 억지력과 사후 추적이다.

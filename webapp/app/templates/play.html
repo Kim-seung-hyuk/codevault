@@ -1,0 +1,17 @@
+{% extends "base.html" %}
+{% block title %}나란히 플레이 · CodeVault{% endblock %}
+{% block content %}
+<h1>{{ j.game_title or j.filename }} — 협력사별 빌드 나란히 플레이</h1>
+<p class="sub">세 빌드는 코드 배치·설정 키 순서·색의 최하위 비트가 서로 다르지만 플레이는 똑같습니다. 화면을 클릭하면 그 빌드에 키 입력이 들어갑니다.</p>
+<div class="play-grid">
+  {% for m in j.marks %}
+  <div class="card">
+    <h3><span>{{ m.customer.name }}</span><span class="mono muted">mark {{ m.mark_id }}</span></h3>
+    {% if m.files_prefix %}
+    <iframe src="/play/{{ m.mark_id }}/" title="{{ m.customer.name }} 빌드"></iframe>
+    {% else %}<p class="muted">빌드 없음</p>{% endif %}
+  </div>
+  {% endfor %}
+</div>
+<p><a href="/jobs/{{ j.id }}">← 작업으로</a></p>
+{% endblock %}

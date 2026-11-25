@@ -1,0 +1,54 @@
+:root {
+  --bg: #f6f7f9; --panel: #ffffff; --ink: #1d2230; --muted: #667085; --line: #e3e6ec;
+  --accent: #3b5bdb; --ok: #2b8a3e; --warn: #b7791f; --bad: #c92a2a; --chip: #eef1f6;
+}
+@media (prefers-color-scheme: dark) {
+  :root { --bg: #11141b; --panel: #1a1f2a; --ink: #e6e9ef; --muted: #98a2b3; --line: #2a3140;
+          --accent: #7c96ff; --ok: #51cf66; --warn: #fcc419; --bad: #ff6b6b; --chip: #232a38; }
+}
+* { box-sizing: border-box; }
+a { color: var(--accent); }
+body { margin: 0; background: var(--bg); color: var(--ink); font: 15px/1.55 system-ui, -apple-system, "Segoe UI", "Malgun Gothic", sans-serif; }
+header { background: var(--panel); border-bottom: 1px solid var(--line); }
+header .wrap { display: flex; align-items: center; gap: 24px; height: 56px; }
+header .brand { font-weight: 700; letter-spacing: .2px; }
+header .brand small { color: var(--muted); font-weight: 400; margin-left: 6px; }
+header nav { display: flex; gap: 16px; flex-wrap: wrap; }
+header nav a { color: var(--muted); text-decoration: none; }
+header nav a:hover, header nav a.on { color: var(--ink); }
+.wrap { max-width: 1120px; margin: 0 auto; padding: 0 16px; }
+main.wrap { padding-top: 24px; padding-bottom: 48px; }
+h1 { font-size: 22px; margin: 0 0 4px; }
+h2 { font-size: 17px; margin: 0 0 12px; }
+.sub { color: var(--muted); margin: 0 0 20px; }
+.grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); gap: 16px; }
+.card { background: var(--panel); border: 1px solid var(--line); border-radius: 10px; padding: 18px; margin-bottom: 16px; }
+table { width: 100%; border-collapse: collapse; font-size: 14px; }
+th, td { text-align: left; padding: 8px 6px; border-bottom: 1px solid var(--line); vertical-align: top; }
+th { color: var(--muted); font-weight: 500; }
+.mono { font-family: ui-monospace, Consolas, monospace; font-size: 13px; }
+label { display: block; font-size: 13px; color: var(--muted); margin: 10px 0 4px; }
+input[type=text], input[type=file], select { width: 100%; padding: 8px 10px; border: 1px solid var(--line); border-radius: 6px; background: var(--bg); color: var(--ink); font: inherit; }
+.checks label { display: flex; gap: 8px; align-items: center; color: var(--ink); font-size: 15px; margin: 6px 0; }
+button, .btn { display: inline-block; background: var(--accent); color: #fff; border: 0; border-radius: 6px; padding: 8px 14px; font: inherit; cursor: pointer; text-decoration: none; }
+.btn.ghost, button.ghost { background: transparent; color: var(--accent); border: 1px solid var(--line); }
+button:disabled { opacity: .5; cursor: default; }
+.chip { display: inline-block; padding: 1px 8px; border-radius: 99px; background: var(--chip); font-size: 12px; }
+.st-DONE { color: var(--ok); } .st-FAILED { color: var(--bad); } .st-PROCESSING, .st-UPLOADED { color: var(--warn); }
+.ok { color: var(--ok); } .bad { color: var(--bad); } .warn { color: var(--warn); } .muted { color: var(--muted); }
+.err { background: color-mix(in srgb, var(--bad) 12%, transparent); border: 1px solid var(--bad); padding: 8px 12px; border-radius: 6px; margin-bottom: 12px; }
+.steps { margin: 0; padding-left: 20px; color: var(--muted); }
+.steps li { margin: 4px 0; }
+.verdict { border-radius: 10px; padding: 18px 20px; margin-bottom: 16px; border: 2px solid var(--line); background: var(--panel); }
+.verdict.TRACED { border-color: var(--ok); }
+.verdict.NONE, .verdict.UNREGISTERED { border-color: var(--muted); }
+.verdict.CONFLICT { border-color: var(--warn); }
+.verdict .big { font-size: 24px; font-weight: 700; }
+.kv { display: grid; grid-template-columns: 140px 1fr; gap: 6px 12px; font-size: 14px; }
+.kv div:nth-child(odd) { color: var(--muted); }
+.play-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 12px; }
+.play-grid .card { padding: 10px; margin: 0; }
+.play-grid iframe { width: 100%; aspect-ratio: 4 / 5; border: 0; border-radius: 6px; background: #000; }
+.play-grid h3 { margin: 4px 4px 8px; font-size: 15px; display: flex; justify-content: space-between; }
+.log { font-family: ui-monospace, Consolas, monospace; font-size: 13px; color: var(--muted); white-space: pre-wrap; }
+@media (max-width: 600px) { .kv { grid-template-columns: 1fr; } header .wrap { height: auto; padding: 10px 16px; flex-wrap: wrap; } }

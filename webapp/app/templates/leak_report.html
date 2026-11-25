@@ -1,0 +1,67 @@
+{% extends "base.html" %}
+{% block title %}유출본 리포트 · CodeVault{% endblock %}
+{% block content %}
+<h1>유출본 검사 리포트</h1>
+<p class="sub mono">{{ r.filename }} · {{ "{:,}".format(r.bytes) }} B · SHA-256 {{ r.sha256[:16] }}…</p>
+
+<div class="verdict {{ r.verdict }}">
+  <div class="muted">판정</div>
+  <div class="big {% if r.verdict == 'TRACED' %}ok{% elif r.verdict == 'CONFLICT' %}warn{% endif %}">{{ r.headline }}</div>
+  {% if r.verdict == 'TRACED' %}
+  <div class="kv" style="margin-top:12px">
+    <div>협력사</div><div><b>{{ r.customer.name }}</b> <span class="muted">{{ r.customer.role }}</span></div>
+    <div>NDA</div><div class="mono">{{ r.customer.nda_ref or "—" }}</div>
+    <div>빌드</div><div>{{ r.build.game }} · mark <span class="mono">{{ r.build.mark_id }}</span> · 작업 <a class="mono" href="/jobs/{{ r.build.job_id }}">{{ r.build.job_id }}</a> · 발급 {{ r.build.issued_at[:16].replace('T',' ') }} UTC</div>
+    <div>신뢰도</div><div>{{ r.confidence_text }}</div>
+    <div>우연 일치 확률</div><div>{{ r.chance_text }} <span class="muted">(무관한 파일이 같은 결과를 낼 확률)</span></div>
+    <div>바이트 일치</div><div>{% if r.exact_build %}<span class="ok">발급한 빌드 zip 과 완전히 같음 (mark {{ r.exact_build }})</span>{% else %}<span class="muted">아님 — 가공된 사본</span>{% endif %}</div>
+  </div>
+  {% else %}
+  <p class="muted" style="margin-bottom:0">
+    {% if r.verdict == 'NONE' %}지문 층이 지워졌거나 원래 표식이 없는 파일입니다. 잘못 지목하지 않도록 판정을 보류합니다.
+      {% if r.l3Hint is not none %}<br>참고: 설정 키 순서(L3)만 남아 mark {{ r.l3Hint }} 를 가리키지만, 서명이 없어 증거로 쓰지 않습니다.{% endif %}
+    {% elif r.verdict == 'CONFLICT' %}서로 다른 층이 서로 다른 협력사를 가리킵니다. 여러 빌드를 섞었거나 일부러 조작한 것일 수 있습니다.
+    {% else %}서명은 맞지만 이 시스템에 등록된 빌드가 아닙니다.{% endif %}
+  </p>
+  {% endif %}
+</div>
+
+<div class="card">
+  <h2>층별 결과</h2>
+  {% if r.layers %}
+  <table>
+    <tr><th>층</th><th>방식</th><th>용량</th><th>읽힘</th><th>읽은 mark</th><th>HMAC 태그</th><th>판정과 일치</th></tr>
+    {% for k in ['L1','L2','L3','L4'] %}{% set l = r.layers[k] %}
+    <tr>
+      <td class="mono">{{ k }}</td><td>{{ l.name }}</td><td>{{ l.bits }}비트</td>
+      <td>{% if l.present %}<span class="ok">✓</span>{% else %}<span class="bad">✗ 소실</span>{% endif %}</td>
+      <td class="mono">{{ l.id if l.present else "—" }}</td>
+      <td>{% if not l.present %}—{% elif l.tagOk is none %}<span class="muted">없음(순열만)</span>{% elif l.tagOk %}<span class="ok">검증</span>{% else %}<span class="bad">불일치</span>{% endif %}</td>
+      <td>{% if l.present %}{% if l.agrees %}<span class="ok">일치</span>{% else %}<span class="muted">잡음</span>{% endif %}{% else %}—{% endif %}</td>
+    </tr>
+    {% endfor %}
+  </table>
+  {% else %}<p class="muted">JS 를 찾지 못했습니다. {{ r.error or "" }}</p>{% endif %}
+  {% if r.sources and r.sources|length > 1 %}
+  <h2 style="margin-top:16px">파일 안 JS 별 결과</h2>
+  <table><tr><th>JS</th><th>크기</th><th>판정</th><th>mark</th><th>신뢰도</th></tr>
+  {% for s in r.sources %}<tr><td class="mono">{{ s.name }}</td><td>{{ s.bytes }}</td><td>{{ s.decision }}</td><td>{{ s.markId or "—" }}</td><td>{{ s.confidence }}</td></tr>{% endfor %}
+  </table>
+  {% endif %}
+</div>
+
+{% if r.verdict == 'TRACED' %}
+<div class="card">
+  <h2>권장 대응</h2>
+  <ol class="steps">
+    <li>{{ r.customer.name }} 에 NDA {{ r.customer.nda_ref or "" }} 근거로 경위 조사 요청 (이 리포트 첨부)</li>
+    <li>해당 빌드 공급 중단 — 새 다운로드 차단
+      <form method="post" action="/builds/{{ r.build.mark_id }}/revoke" style="display:inline">
+        <input type="hidden" name="back" value="/jobs/{{ r.build.job_id }}">
+        <button class="ghost" style="padding:2px 10px">{{ "공급 재개" if r.build.revoked else "공급 중단" }}</button></form></li>
+    <li>유출 지점(사이트, 게시자)과 리포트 해시 {{ r.sha256[:16] }}… 를 증거로 보관</li>
+  </ol>
+</div>
+{% endif %}
+<p><a href="/leak">← 다른 파일 검사</a></p>
+{% endblock %}

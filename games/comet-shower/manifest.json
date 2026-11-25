@@ -1,0 +1,20 @@
+{
+  "name": "comet-shower",
+  "title": "Comet Shower",
+  "version": "1.0.0",
+  "studio": "픽셀웍스 (Pixelworks)",
+  "genre": "낙하물 피하기",
+  "controls": "←/→ 또는 A/D 이동, Space 재시작 (화면 좌/우 터치도 가능)",
+  "entry": "index.html",
+  "watermark": {
+    "targets": [
+      "game.js"
+    ],
+    "config": "GAME_CONFIG",
+    "palette": "PALETTE"
+  },
+  "canvas": {
+    "width": 160,
+    "height": 240
+  }
+}

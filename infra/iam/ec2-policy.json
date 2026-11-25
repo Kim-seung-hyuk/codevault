@@ -1,0 +1,12 @@
+{
+  "Version": "2012-10-17",
+  "Statement": [
+    { "Sid": "PresignUploadAndWriteSpec", "Effect": "Allow", "Action": ["s3:PutObject"],
+      "Resource": ["arn:aws:s3:::__BUCKET__/uploads/*", "arn:aws:s3:::__BUCKET__/jobs/*"] },
+    { "Sid": "ReadForPlayDownloadAndInline", "Effect": "Allow", "Action": ["s3:GetObject"],
+      "Resource": ["arn:aws:s3:::__BUCKET__/outputs/*", "arn:aws:s3:::__BUCKET__/uploads/*", "arn:aws:s3:::__BUCKET__/jobs/*"] },
+    { "Sid": "InlineFallbackWrites", "Effect": "Allow", "Action": ["s3:PutObject"],
+      "Resource": ["arn:aws:s3:::__BUCKET__/outputs/*", "arn:aws:s3:::__BUCKET__/failed/*"] },
+    { "Sid": "List", "Effect": "Allow", "Action": ["s3:ListBucket"], "Resource": "arn:aws:s3:::__BUCKET__" }
+  ]
+}

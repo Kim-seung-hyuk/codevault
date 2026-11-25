@@ -1,0 +1,19 @@
+[Unit]
+Description=CodeVault FastAPI (web + API)
+After=network-online.target postgresql.service
+Wants=network-online.target
+
+[Service]
+User=codevault
+WorkingDirectory=/opt/codevault/webapp
+EnvironmentFile=/etc/codevault.env
+ExecStart=/opt/codevault/.venv/bin/uvicorn app.main:app --host 0.0.0.0 --port ${PORT} --workers 2 --proxy-headers
+# root 없이 80 포트 사용
+AmbientCapabilities=CAP_NET_BIND_SERVICE
+Restart=on-failure
+RestartSec=3
+# t3.small(2GB) 에서 PostgreSQL 과 나눠 쓰기
+MemoryMax=700M
+
+[Install]
+WantedBy=multi-user.target
