@@ -45,4 +45,25 @@ function obfuscate(code) {
   }).getObfuscatedCode();
 }
 
-module.exports = { stripComments, terserMangle, beautifyAndEdit, obfuscate };
+// A5: 층을 아는 공격자 — 알려진 지문 위치를 전부 흔든다 (난독화 없이 원본 구조를 유지)
+//   주석·공백 재생성, 함수 순서 셔플, 설정 키 알파벳 정렬, 소수 상수 4자리 반올림, 팔레트 하위비트 덮어쓰기
+function informedScrub(code) {
+  const ast = acorn.parse(code, { ecmaVersion: 2022 });
+  const slots = [], fns = [];
+  ast.body.forEach((n, i) => { if (n.type === "FunctionDeclaration") { slots.push(i); fns.push(n); } });
+  fns.reverse();
+  slots.forEach((s, k) => (ast.body[s] = fns[k]));
+  (function walk(n) {
+    if (!n || typeof n !== "object") return;
+    if (n.type === "ObjectExpression" && n.properties.length === 8) n.properties.sort((a, b) => ((a.key.name || a.key.value) < (b.key.name || b.key.value) ? -1 : 1));
+    if (n.type === "Literal" && typeof n.value === "number" && !Number.isInteger(n.value)) { n.value = Math.round(n.value * 1e4) / 1e4; n.raw = String(n.value); }
+    if (n.type === "Literal" && typeof n.value === "string" && /^#[0-9a-f]{6}$/i.test(n.value)) {
+      const v = n.value.slice(0, 5) + ((parseInt(n.value.slice(5), 16) & 0xfc) | 1).toString(16).padStart(2, "0");
+      n.value = v; n.raw = JSON.stringify(v);
+    }
+    for (const k in n) { const v = n[k]; if (Array.isArray(v)) v.forEach(walk); else if (v && typeof v === "object") walk(v); }
+  })(ast);
+  return generate(ast);
+}
+
+module.exports = { stripComments, terserMangle, beautifyAndEdit, obfuscate, informedScrub };

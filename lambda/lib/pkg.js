@@ -55,7 +55,7 @@ function inspectPackage(buf) {
   const analysis = {};
   for (const t of manifest.watermark.targets) {
     const a = wm.analyze(strFromU8(files[t]));
-    analysis[t] = { ok: a.ok, issues: a.issues, functions: a.functions.length, capacityBits: a.capacityBits };
+    analysis[t] = { ok: a.ok, issues: a.issues, notes: a.notes, functions: a.functions.length, floats: a.floats, capacityBits: a.capacityBits };
     if (!a.ok) throw new ValidationError(`${t} 가 워터마크 요구사항 미충족: ${a.issues.join("; ")}`, analysis);
   }
   return { files, manifest, analysis };
@@ -68,7 +68,7 @@ function buildFor(pkg, markId, opts) {
   for (const t of pkg.manifest.watermark.targets) {
     const marked = wm.insert(strFromU8(pkg.files[t]), markId, opts);
     const check = wm.extract(marked, opts);
-    if (check.decision !== "IDENTIFIED" || check.markId !== markId || check.survivingLayers !== 4)
+    if (check.decision !== "IDENTIFIED" || check.markId !== markId || check.confidence !== "HIGH" || check.agreeingLayers.length < 5)
       throw new Error(`자체 검증 실패 (${t}, mark ${markId})`);
     out[t] = strToU8(marked);
   }

@@ -1,7 +1,7 @@
 """데모 2~5장면(+7장면 한계) 엔드투엔드 재현. 서버가 떠 있어야 한다.
     python tests/e2e_demo.py [http://127.0.0.1:8000]
 2 업로드 → A/B/C 빌드 생성  3 세 빌드 플레이 파일 확인  4 B 빌드를 terser 로 압축한 유출본  5 유출본 검사 → B 경로
-7 난독화본 → 표식 없음(오지목 없음)
+7 강한 난독화본 → 여전히 B (L5), 층을 아는 공격자(scrub) → 표식 없음(오지목 없음)
 """
 import io
 import json
@@ -73,7 +73,7 @@ for game in ["comet-shower", "lantern-range", "moss-hop"]:
     with tempfile.TemporaryDirectory() as td:
         zp = Path(td) / "b.zip"
         zp.write_bytes(z.content)
-        for attack, expect in [("terser", "TRACED"), ("obfuscate", "NONE")]:
+        for attack, expect in [("terser", "TRACED"), ("obfuscate", "TRACED"), ("scrub", "NONE")]:
             out = Path(td) / f"leak-{attack}.js"
             subprocess.run(["node", str(ROOT / "tools" / "make-leak.js"), str(zp), attack, "-o", str(out)], check=True, capture_output=True)
             print(f"[5/7] 유출본 검사 ({attack})")

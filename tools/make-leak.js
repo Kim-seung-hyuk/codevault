@@ -1,6 +1,6 @@
 // 데모 4장면: 받은 빌드로 "유출본"을 만든다.
 //   node tools/make-leak.js <빌드.zip | game.js> <attack> [-o 출력파일]
-//   attack: none | strip | terser | edit | obfuscate
+//   attack: none | strip | terser | edit | obfuscate | scrub(층을 아는 공격자)
 // zip 을 넣으면 manifest 의 워터마크 대상 JS 를 꺼내 공격을 적용하고 JS 파일 하나로 저장한다.
 const fs = require("fs");
 const path = require("path");
@@ -13,6 +13,7 @@ const ATTACKS = {
   terser: atk.terserMangle,
   edit: async (c) => atk.beautifyAndEdit(c),
   obfuscate: async (c) => atk.obfuscate(c),
+  scrub: async (c) => atk.informedScrub(c),
 };
 
 (async () => {
@@ -21,7 +22,7 @@ const ATTACKS = {
   const out = oIdx >= 0 ? args.splice(oIdx, 2)[1] : null;
   const [input, attack = "terser"] = args;
   if (!input || !ATTACKS[attack]) {
-    console.error("usage: node tools/make-leak.js <build.zip|game.js> <none|strip|terser|edit|obfuscate> [-o out.js]");
+    console.error("usage: node tools/make-leak.js <build.zip|game.js> <none|strip|terser|edit|obfuscate|scrub> [-o out.js]");
     process.exit(2);
   }
   let code;

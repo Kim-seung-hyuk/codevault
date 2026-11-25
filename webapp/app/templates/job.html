@@ -31,7 +31,7 @@ function render(d) {
   document.getElementById("error").textContent = d.error || "";
   if (d.elapsed_ms != null) document.getElementById("elapsed").textContent = `(${d.elapsed_ms} ms)`;
   if (d.analysis) document.getElementById("analysis").textContent = Object.entries(d.analysis)
-    .map(([f, a]) => `${f}: 함수 ${a.functions}개, L2 용량 ${a.capacityBits}비트, 요구사항 ${a.ok ? "충족" : "미충족"}`).join(" / ");
+    .map(([f, a]) => `${f}: 함수 ${a.functions}개, 소수 상수 ${a.floats ?? 0}개, 요구사항 ${a.ok ? "충족" : "미충족"}`).join(" / ");
   const rows = d.builds.map((b) => `<tr>
     <td>${esc(b.customer)} <span class="muted">${esc(b.role)}</span></td>
     <td class="mono">${b.mark_id}</td>

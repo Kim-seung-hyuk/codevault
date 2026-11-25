@@ -19,7 +19,7 @@
   {% else %}
   <p class="muted" style="margin-bottom:0">
     {% if r.verdict == 'NONE' %}지문 층이 지워졌거나 원래 표식이 없는 파일입니다. 잘못 지목하지 않도록 판정을 보류합니다.
-      {% if r.l3Hint is not none %}<br>참고: 설정 키 순서(L3)만 남아 mark {{ r.l3Hint }} 를 가리키지만, 서명이 없어 증거로 쓰지 않습니다.{% endif %}
+      {% if r.l3Hint is not none %}<br>참고: 설정 키 순서(L3)만 남아 mark {{ r.l3Hint }} 를 가리키지만, 7비트 태그 하나뿐이라 단독 증거로 쓰지 않습니다.{% endif %}
     {% elif r.verdict == 'CONFLICT' %}서로 다른 층이 서로 다른 협력사를 가리킵니다. 여러 빌드를 섞었거나 일부러 조작한 것일 수 있습니다.
     {% else %}서명은 맞지만 이 시스템에 등록된 빌드가 아닙니다.{% endif %}
   </p>
@@ -30,13 +30,13 @@
   <h2>층별 결과</h2>
   {% if r.layers %}
   <table>
-    <tr><th>층</th><th>방식</th><th>용량</th><th>읽힘</th><th>읽은 mark</th><th>HMAC 태그</th><th>판정과 일치</th></tr>
-    {% for k in ['L1','L2','L3','L4'] %}{% set l = r.layers[k] %}
+    <tr><th>층</th><th>방식</th><th>페이로드</th><th>읽힘</th><th>읽은 mark</th><th>HMAC 태그</th><th>판정과 일치</th></tr>
+    {% for k, l in r.layers|dictsort %}
     <tr>
       <td class="mono">{{ k }}</td><td>{{ l.name }}</td><td>{{ l.bits }}비트</td>
       <td>{% if l.present %}<span class="ok">✓</span>{% else %}<span class="bad">✗ 소실</span>{% endif %}</td>
-      <td class="mono">{{ l.id if l.present else "—" }}</td>
-      <td>{% if not l.present %}—{% elif l.tagOk is none %}<span class="muted">없음(순열만)</span>{% elif l.tagOk %}<span class="ok">검증</span>{% else %}<span class="bad">불일치</span>{% endif %}</td>
+      <td class="mono">{{ l.id if l.present else "—" }}{% if l.votes %} <span class="muted">({{ l.votes }}/{{ l.total }} 리터럴)</span>{% endif %}</td>
+      <td>{% if not l.present %}—{% elif l.tagOk %}<span class="ok">검증 ({{ l.tagBits }}비트)</span>{% else %}<span class="bad">불일치</span>{% endif %}</td>
       <td>{% if l.present %}{% if l.agrees %}<span class="ok">일치</span>{% else %}<span class="muted">잡음</span>{% endif %}{% else %}—{% endif %}</td>
     </tr>
     {% endfor %}

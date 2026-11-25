@@ -14,7 +14,7 @@
 </div>
 <div class="card">
   <h2>유출본 만들기 (데모)</h2>
-  <p class="muted">받은 빌드 zip 으로 유출을 흉내 냅니다. 공격 종류: <span class="mono">strip</span>(주석 제거) · <span class="mono">terser</span>(minify+mangle) · <span class="mono">edit</span>(수동 편집) · <span class="mono">obfuscate</span>(강한 난독화)</p>
+  <p class="muted">받은 빌드 zip 으로 유출을 흉내 냅니다. 공격 종류: <span class="mono">strip</span>(주석 제거) · <span class="mono">terser</span>(minify+mangle) · <span class="mono">edit</span>(수동 편집) · <span class="mono">obfuscate</span>(강한 난독화) · <span class="mono">scrub</span>(층을 아는 공격자)</p>
   <pre class="mono">node tools/make-leak.js 받은빌드.zip terser -o leaked.js</pre>
 </div>
 {% endblock %}

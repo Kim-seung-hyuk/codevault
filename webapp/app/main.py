@@ -364,8 +364,8 @@ def analyze_leak(data: bytes, filename: str, db: Session) -> dict:
         rep["headline"] = "표식 없음 — 어느 협력사도 지목하지 않음"
     conf = rep.get("confidence")
     rep["confidence_text"] = {
-        "HIGH": "높음 — 독립된 2개 이상 층이 같은 표식을 가리킴",
-        "MEDIUM": "중간 — 1개 층의 HMAC 태그만 검증됨 (추가 증거와 함께 판단)",
+        "HIGH": "높음 — 독립된 여러 층이 같은 표식을 가리킴",
+        "MEDIUM": "중간 — 1개 층의 HMAC 태그만 검증됐거나 반대 층이 있음 (추가 증거와 함께 판단)",
     }.get(conf, "없음")
     if rep.get("chanceMatch"):
         rep["chance_text"] = f"약 1/{round(1 / rep['chanceMatch']):,}"
