@@ -345,6 +345,34 @@ def analyze_leak(data: bytes, filename: str, db: Session) -> dict:
     exact = db.scalar(select(Mark).where(Mark.sha256 == sha))
     rep["exact_build"] = exact.mark_id if exact else None
 
+    if rep.get("kind") == "image":
+        # 스크린샷: 캔버스마다 따로 판정 (나란히 플레이 화면이면 여러 빌드가 한 장에 있을 수 있음)
+        for c in rep.get("canvases", []):
+            m = db.get(Mark, c["markId"]) if c.get("markId") else None
+            c["customer"] = m.customer.name if m else None
+            c["registered"] = m is not None
+        traced = [c for c in rep.get("canvases", []) if c.get("registered")]
+        names = list(dict.fromkeys(c["customer"] for c in traced))  # 화면 왼쪽→오른쪽 순서
+        if len(names) == 1:
+            m = db.get(Mark, traced[0]["markId"])
+            rep["verdict"] = "TRACED"
+            rep["customer"] = customer_dict(m.customer)
+            rep["build"] = {"mark_id": m.mark_id, "job_id": m.job_id, "game": m.job.game_title,
+                            "issued_at": m.created_at.isoformat() + "Z", "revoked": m.revoked_at is not None, "sha256": m.sha256}
+            rep["headline"] = f"{m.customer.name} 경로, 서명 검증 통과 (화면 출력 지문)"
+        elif len(names) > 1:
+            rep["verdict"] = "MULTIPLE"
+            rep["headline"] = f"한 장에 빌드 {len(traced)}개: " + ", ".join(names)
+        elif rep.get("canvases"):
+            rep["verdict"] = "NONE"
+            rep["headline"] = "화면 지문을 읽지 못함 — 어느 협력사도 지목하지 않음"
+        else:
+            rep["verdict"] = "NONE"
+            rep["headline"] = "화면 지문 없음 — 어느 협력사도 지목하지 않음"
+        rep["confidence_text"] = "중간 — 화면 출력 지문 1개 층(8비트 태그)으로 검증" if traced else "없음"
+        rep["chance_text"] = "약 1/256" if traced else None
+        return rep
+
     mark: Optional[Mark] = db.get(Mark, rep["markId"]) if rep.get("markId") else None
     if rep["decision"] == "IDENTIFIED" and mark is None:
         rep["verdict"] = "UNREGISTERED"

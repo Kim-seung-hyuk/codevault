@@ -84,6 +84,13 @@ for game in ["comet-shower", "lantern-range", "moss-hop"]:
             # HTML 리포트 화면
             page = c.post("/leak", files={"file": (out.name, out.read_bytes(), "text/javascript")})
             check(page.status_code == 200 and rep["headline"] in page.text, "리포트 화면 렌더링")
+        print("[5'] 스트리머 화면 스크린샷(PNG) → L7 출력 지문")
+        shot = Path(td) / "shot.png"
+        subprocess.run(["node", str(ROOT / "tools" / "screenshot.js"), str(zp), "-o", str(shot), "--scale", "2.5"], check=True, capture_output=True)
+        rep = c.post("/api/leak", files={"file": ("stream.png", shot.read_bytes(), "image/png")}).json()
+        check(rep["verdict"] == "TRACED" and rep["customer"]["name"] == "현지화 업체 B", f"스크린샷: {rep['headline']}")
+        page = c.post("/leak", files={"file": ("stream.png", shot.read_bytes(), "image/png")})
+        check(page.status_code == 200 and "캔버스별 결과" in page.text, "스크린샷 리포트 화면 렌더링")
         rep = c.post("/api/leak", files={"file": ("b.zip", z.content, "application/zip")}).json()
         check(rep["verdict"] == "TRACED" and rep["exact_build"] == b["mark_id"], "원본 빌드 zip 그대로 → 바이트 일치 + B 경로")
 

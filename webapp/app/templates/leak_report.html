@@ -6,7 +6,7 @@
 
 <div class="verdict {{ r.verdict }}">
   <div class="muted">판정</div>
-  <div class="big {% if r.verdict == 'TRACED' %}ok{% elif r.verdict == 'CONFLICT' %}warn{% endif %}">{{ r.headline }}</div>
+  <div class="big {% if r.verdict in ('TRACED', 'MULTIPLE') %}ok{% elif r.verdict == 'CONFLICT' %}warn{% endif %}">{{ r.headline }}</div>
   {% if r.verdict == 'TRACED' %}
   <div class="kv" style="margin-top:12px">
     <div>협력사</div><div><b>{{ r.customer.name }}</b> <span class="muted">{{ r.customer.role }}</span></div>
@@ -14,18 +14,39 @@
     <div>빌드</div><div>{{ r.build.game }} · mark <span class="mono">{{ r.build.mark_id }}</span> · 작업 <a class="mono" href="/jobs/{{ r.build.job_id }}">{{ r.build.job_id }}</a> · 발급 {{ r.build.issued_at[:16].replace('T',' ') }} UTC</div>
     <div>신뢰도</div><div>{{ r.confidence_text }}</div>
     <div>우연 일치 확률</div><div>{{ r.chance_text }} <span class="muted">(무관한 파일이 같은 결과를 낼 확률)</span></div>
-    <div>바이트 일치</div><div>{% if r.exact_build %}<span class="ok">발급한 빌드 zip 과 완전히 같음 (mark {{ r.exact_build }})</span>{% else %}<span class="muted">아님 — 가공된 사본</span>{% endif %}</div>
+    {% if r.kind != 'image' %}<div>바이트 일치</div><div>{% if r.exact_build %}<span class="ok">발급한 빌드 zip 과 완전히 같음 (mark {{ r.exact_build }})</span>{% else %}<span class="muted">아님 — 가공된 사본</span>{% endif %}</div>{% endif %}
   </div>
   {% else %}
   <p class="muted" style="margin-bottom:0">
-    {% if r.verdict == 'NONE' %}지문 층이 지워졌거나 원래 표식이 없는 파일입니다. 잘못 지목하지 않도록 판정을 보류합니다.
+    {% if r.verdict == 'NONE' and r.kind == 'image' %}화면 지문을 찾지 못했습니다. 지문이 없는 화면이거나, JPEG·영상처럼 손실 압축됐거나, 화면 일부만 잘린 스크린샷일 수 있습니다. 잘못 지목하지 않도록 판정을 보류합니다.
+    {% elif r.verdict == 'NONE' %}지문 층이 지워졌거나 원래 표식이 없는 파일입니다. 잘못 지목하지 않도록 판정을 보류합니다.
       {% if r.l3Hint is not none %}<br>참고: 설정 키 순서(L3)만 남아 mark {{ r.l3Hint }} 를 가리키지만, 7비트 태그 하나뿐이라 단독 증거로 쓰지 않습니다.{% endif %}
+    {% elif r.verdict == 'MULTIPLE' %}한 스크린샷 안에 서로 다른 빌드의 화면이 여러 개 있습니다 (예: 나란히 플레이 화면). 아래 캔버스별 결과를 보세요.
     {% elif r.verdict == 'CONFLICT' %}서로 다른 층이 서로 다른 협력사를 가리킵니다. 여러 빌드를 섞었거나 일부러 조작한 것일 수 있습니다.
     {% else %}서명은 맞지만 이 시스템에 등록된 빌드가 아닙니다.{% endif %}
   </p>
   {% endif %}
 </div>
 
+{% if r.kind == 'image' %}
+<div class="card">
+  <h2>L7 화면 출력 지문 — 캔버스별 결과</h2>
+  <p class="muted">이미지 {{ r.image.width if r.image else "?" }}×{{ r.image.height if r.image else "?" }} · red 최하위 비트만 다른 색 쌍 {{ r.colorPairs or 0 }}개 발견</p>
+  {% if r.canvases %}
+  <table>
+    <tr><th>#</th><th>위치 (x, y, 폭×높이)</th><th>읽은 mark</th><th>HMAC 태그</th><th>비트 대비</th><th>협력사</th></tr>
+    {% for c in r.canvases %}
+    <tr><td>{{ loop.index }}</td><td class="mono">{{ c.bbox.x }}, {{ c.bbox.y }}, {{ c.bbox.w }}×{{ c.bbox.h }}</td>
+      <td class="mono">{{ c.markId or "—" }}</td>
+      <td>{% if c.tagOk %}<span class="ok">검증</span>{% else %}<span class="bad">불일치</span>{% endif %}</td>
+      <td>{{ c.quality }}{% if c.quality < 0.5 %} <span class="muted">(약함)</span>{% endif %}</td>
+      <td>{% if c.customer %}<b>{{ c.customer }}</b>{% elif c.markId %}<span class="muted">미등록</span>{% else %}—{% endif %}</td></tr>
+    {% endfor %}
+  </table>
+  {% else %}<p class="muted">지문 패턴이 있는 화면 영역이 없습니다. {{ r.error or "" }}</p>{% endif %}
+  <p class="muted" style="margin-bottom:0">게임이 그린 화면을 8×4 칸으로 나눠, 칸마다 픽셀 red 채널 최하위 비트(1/255 밝기)로 16비트를 실었습니다. 코드를 아무리 바꿔도 화면 출력이 같으면 남습니다.</p>
+</div>
+{% else %}
 <div class="card">
   <h2>층별 결과</h2>
   {% if r.layers %}
@@ -49,6 +70,7 @@
   </table>
   {% endif %}
 </div>
+{% endif %}
 
 {% if r.verdict == 'TRACED' %}
 <div class="card">

@@ -7,6 +7,7 @@
 //   L4  PALETTE 8색 blue 하위 2비트              코드워드 16비트       8비트  minify+mangle
 //   L5  소수 상수의 가수 최하위 24비트            리터럴마다 코드워드   8비트  minify·함수 이동·색 변경
 //   L6  줄 끝 공백 패턴 (줄 내용 해시로 슬롯 결정)  코드워드 16비트       8비트  주석만 손으로 지운 경우
+//   L7  렌더링된 화면 픽셀 (lib/outputmark.js)     코드워드 16비트       8비트  스크린샷(PNG)만 있을 때
 //
 // 코드워드 = (mark_id << 8) | HMAC-SHA256(secret, mark_id)[0]
 // 판정: 태그가 검증된 층들을 mark 별로 묶어 가중치(8비트 태그 = 1, L3 의 7비트 태그 = 0.5)를 더한다.
@@ -16,6 +17,7 @@
 const acorn = require("acorn");
 const { generate } = require("astring");
 const crypto = require("crypto");
+const { shimSource } = require("./outputmark");
 
 const DEFAULT_SECRET = "codevault-demo-secret-v1";
 const ZW0 = "​"; // zero-width space      -> bit 0
@@ -225,6 +227,9 @@ function insert(code, markId, opts) {
       palNodes.add(el);
     }
   }
+
+  // L7: 출력 지문 — 렌더링 후처리 코드를 붙인다 (화면 픽셀에 지문, lib/outputmark.js)
+  if (!opts || opts.outputMark !== false) ast.body.push(...parse(shimSource(cw, secret)).body);
 
   // L5: 모든 소수 리터럴
   walk(ast, (n) => {
