@@ -45,7 +45,7 @@ function obfuscate(code) {
   }).getObfuscatedCode();
 }
 
-// A5: 층을 아는 공격자 — 알려진 지문 위치를 전부 흔든다 (난독화 없이 원본 구조를 유지)
+// A5: 층을 아는 공격자(L1~L7) — 알려진 지문 위치를 전부 흔든다 (난독화 없이 원본 구조를 유지)
 //   주석·공백 재생성, 함수 순서 셔플, 설정 키 알파벳 정렬, 소수 상수 4자리 반올림, 팔레트 하위비트 덮어쓰기
 function informedScrub(code) {
   const ast = acorn.parse(code, { ecmaVersion: 2022 });
@@ -66,4 +66,25 @@ function informedScrub(code) {
   return generate(ast);
 }
 
-module.exports = { stripComments, terserMangle, beautifyAndEdit, obfuscate, informedScrub };
+// A6: L8 까지 아는 공격자 — A5 + 정수 데이터 배열의 모든 값에 잡음(±k 균등) 또는 q 배수 반올림.
+//   원본 값을 모르므로 "되돌리기"는 불가능하고, 흔드는 것만 가능하다. rng 를 넘기면 재현 가능.
+function semanticScrub(code, { k = 0, q = 0, shuffle = false, rng = Math.random } = {}) {
+  const ast = acorn.parse(informedScrub(code), { ecmaVersion: 2022 });
+  const isIntArray = (a) => a && a.type === "ArrayExpression" && a.elements.length > 1 &&
+    a.elements.every((e) => (e.type === "Literal" && Number.isInteger(e.value)) || (e.type === "ArrayExpression" && e.elements.every((x) => x.type === "Literal" && Number.isInteger(x.value))));
+  const touch = (lit) => {
+    let v = lit.value;
+    if (Math.abs(v) < 4) return;
+    if (k) v += Math.round((rng() * 2 - 1) * k);
+    if (q) v = Math.round(v / q) * q;
+    lit.value = v; lit.raw = String(v);
+  };
+  for (const n of ast.body) if (n.type === "VariableDeclaration") for (const d of n.declarations) {
+    if (!isIntArray(d.init)) continue;
+    d.init.elements.forEach((e) => (e.type === "ArrayExpression" ? e.elements.forEach(touch) : touch(e)));
+    if (shuffle) for (let i = d.init.elements.length - 1; i > 0; i--) { const j = Math.floor(rng() * (i + 1)); [d.init.elements[i], d.init.elements[j]] = [d.init.elements[j], d.init.elements[i]]; }
+  }
+  return generate(ast);
+}
+
+module.exports = { stripComments, terserMangle, beautifyAndEdit, obfuscate, informedScrub, semanticScrub };

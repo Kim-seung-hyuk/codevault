@@ -18,6 +18,18 @@ var PALETTE = [
   "#ffe066", "#ff7b54", "#f4f4f8", "#7a3cff"
 ];
 
+// 혜성 낙하 일정: [낙하 x 좌표, 다음 혜성까지 프레임]. 게임플레이 데이터 = L8 시맨틱 지문이 실리는 곳
+var WAVES = [
+  [92, 20], [111, 36], [22, 18], [147, 19],
+  [103, 34], [24, 32], [64, 17], [32, 29],
+  [117, 18], [71, 18], [118, 17], [41, 23],
+  [25, 34], [111, 17], [66, 17], [44, 25],
+  [117, 20], [148, 19], [88, 33], [56, 19],
+  [58, 27], [34, 33], [26, 34], [25, 35],
+  [62, 31], [146, 29], [90, 30], [126, 27],
+  [86, 23], [56, 23], [30, 34], [86, 32]
+];
+
 var input = { left: false, right: false, restart: false };
 
 function createState() {
@@ -28,7 +40,8 @@ function createState() {
   return {
     ship: { x: GAME_CONFIG.width / 2, y: GAME_CONFIG.height - 18 },
     comets: [], shards: [], stars: stars,
-    tick: 0, score: 0, lives: GAME_CONFIG.startLives, hurt: 0, over: false
+    tick: 0, score: 0, lives: GAME_CONFIG.startLives, hurt: 0, over: false,
+    wave: 0, nextSpawn: GAME_CONFIG.spawnEvery
   };
 }
 
@@ -46,10 +59,12 @@ function moveShip(state) {
 }
 
 function spawnThings(state) {
-  if (state.tick % GAME_CONFIG.spawnEvery !== 0) return;
+  if (state.tick < state.nextSpawn) return;
+  var w = WAVES[state.wave++ % WAVES.length];
+  state.nextSpawn = state.tick + w[1];
   if (state.comets.length < GAME_CONFIG.maxComets) {
     var speed = GAME_CONFIG.cometSpeed + Math.min(state.tick / 1800, 1.6) + Math.random() * 0.6;
-    state.comets.push({ x: 6 + Math.random() * (GAME_CONFIG.width - 12), y: -6, vy: speed, r: 3 + Math.floor(Math.random() * 3) });
+    state.comets.push({ x: w[0], y: -6, vy: speed, r: 3 + Math.floor(Math.random() * 3) });
   }
   if (Math.random() < 0.35) state.shards.push({ x: 8 + Math.random() * (GAME_CONFIG.width - 16), y: -4, vy: 0.9 });
 }

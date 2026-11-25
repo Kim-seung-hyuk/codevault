@@ -221,7 +221,8 @@ async def lambda_callback(request: Request, db: Session = Depends(get_db)):
             j.status = "PROCESSING"
     elif status == "DONE":
         j.status, j.error = "DONE", None
-        j.result = {"analysis": p.get("analysis"), "elapsed_ms": p.get("elapsed_ms"), "game": p.get("game")}
+        j.result = {"analysis": p.get("analysis"), "elapsed_ms": p.get("elapsed_ms"), "game": p.get("game"),
+                    "references": p.get("references")}  # L8 시맨틱 지문 검출용 원본 데이터 표
         g = p.get("game") or {}
         j.game_title, j.game_name = g.get("title"), g.get("name")
         marks = {m.mark_id: m for m in j.marks}
@@ -327,15 +328,31 @@ VERDICT_TEXT = {
 }
 
 
+def collect_references(db: Session) -> list:
+    """완료된 작업들의 L8 원본 레퍼런스 (같은 내용은 하나로)"""
+    seen, out = set(), []
+    for j in db.scalars(select(Job).where(Job.status == "DONE")):
+        for ref in ((j.result or {}).get("references") or {}).values():
+            key = json.dumps(ref, sort_keys=True)
+            if key not in seen:
+                seen.add(key)
+                out.append(ref)
+    return out
+
+
 def analyze_leak(data: bytes, filename: str, db: Session) -> dict:
     with tempfile.NamedTemporaryFile(delete=False, suffix=Path(filename).suffix or ".bin") as tf:
         tf.write(data)
         tmp = tf.name
+    with tempfile.NamedTemporaryFile("w", delete=False, suffix=".json", encoding="utf-8") as rf:
+        json.dump(collect_references(db), rf)
+        refs = rf.name
     try:
-        r = subprocess.run([config.NODE_BIN, str(config.LAMBDA_DIR / "extract-cli.js"), tmp, filename],
-                           env=node_env(), capture_output=True, text=True, timeout=60, encoding="utf-8")
+        r = subprocess.run([config.NODE_BIN, str(config.LAMBDA_DIR / "extract-cli.js"), tmp, filename, "--refs", refs],
+                           env=node_env(), capture_output=True, text=True, timeout=120, encoding="utf-8")
     finally:
         os.unlink(tmp)
+        os.unlink(refs)
     if r.returncode != 0:
         raise HTTPException(500, "추출기 실행 실패: " + r.stderr[-300:])
     rep = json.loads(r.stdout)

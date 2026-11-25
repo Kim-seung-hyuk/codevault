@@ -6,7 +6,7 @@
     "setup": "npm --prefix lambda install && npm run pack",
     "pack": "node tools/pack-games.js",
     "check": "node tools/check-game.js games/comet-shower/game.js games/lantern-range/game.js games/moss-hop/game.js",
-    "test": "npm run check && node tests/smoke-games.js && node tests/run-matrix.js && node tests/output-mark.js",
+    "test": "npm run check && node tests/smoke-games.js && node tests/run-matrix.js && node tests/semantic-attack.js && node tests/output-mark.js",
     "e2e": "python tests/e2e_demo.py",
     "dev": "cd webapp && python -m uvicorn app.main:app --reload --port 8000"
   },

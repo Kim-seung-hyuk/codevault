@@ -54,10 +54,10 @@
     <tr><th>층</th><th>방식</th><th>페이로드</th><th>읽힘</th><th>읽은 mark</th><th>HMAC 태그</th><th>판정과 일치</th></tr>
     {% for k, l in r.layers|dictsort %}
     <tr>
-      <td class="mono">{{ k }}</td><td>{{ l.name }}</td><td>{{ l.bits }}비트</td>
+      <td class="mono">{{ k }}</td><td>{{ l.name }}</td><td>{% if k == 'L8' %}mark 패턴{% else %}{{ l.bits }}비트{% endif %}</td>
       <td>{% if l.present %}<span class="ok">✓</span>{% else %}<span class="bad">✗ 소실</span>{% endif %}</td>
       <td class="mono">{{ l.id if l.present else "—" }}{% if l.votes %} <span class="muted">({{ l.votes }}/{{ l.total }} 리터럴)</span>{% endif %}</td>
-      <td>{% if not l.present %}—{% elif l.tagOk %}<span class="ok">검증 ({{ l.tagBits }}비트)</span>{% else %}<span class="bad">불일치</span>{% endif %}</td>
+      <td>{% if not l.present %}—{% elif k == 'L8' %}{% if l.tagOk %}<span class="ok">상관 z={{ l.z }}</span>{% else %}<span class="muted">z={{ l.z }} (기준 5 미만)</span>{% endif %} <span class="muted">· 데이터 {{ l.carriers }}개, 평균 변화 {{ l.meanAbsOffset }}</span>{% elif l.tagOk %}<span class="ok">검증 ({{ l.tagBits }}비트)</span>{% else %}<span class="bad">불일치</span>{% endif %}</td>
       <td>{% if l.present %}{% if l.agrees %}<span class="ok">일치</span>{% else %}<span class="muted">잡음</span>{% endif %}{% else %}—{% endif %}</td>
     </tr>
     {% endfor %}

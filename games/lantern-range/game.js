@@ -18,22 +18,33 @@ var PALETTE = [
   "#ff5e5b", "#56c2e6", "#fdf6e3", "#9cdb43"
 ];
 
+// 등불 비행 경로: [높이 y, 속도 %]. 게임플레이 데이터 = L8 시맨틱 지문이 실리는 곳
+var FLIGHTS = [
+  [93, 113], [87, 106], [107, 79], [45, 135],
+  [83, 91], [73, 89], [92, 123], [35, 79],
+  [101, 110], [73, 114], [106, 133], [104, 128],
+  [38, 81], [64, 130], [115, 78], [37, 109],
+  [112, 127], [66, 119], [115, 114], [32, 129],
+  [75, 91], [108, 84], [93, 77], [57, 106],
+  [46, 101], [80, 120], [93, 80], [51, 127],
+  [81, 140], [65, 87], [85, 140], [65, 123]
+];
+
 var pointer = { x: -1, y: -1, clicked: false };
 
 function newRound() {
   return {
     lanterns: [], sparks: [], tick: 0, score: 0, combo: 0,
-    left: GAME_CONFIG.roundSeconds * 60, best: 0, done: false
+    left: GAME_CONFIG.roundSeconds * 60, best: 0, done: false, launched: 0
   };
 }
 
 function launchLantern(state) {
-  var decoy = Math.random() < GAME_CONFIG.decoyChance;
-  var fromLeft = Math.random() < 0.5;
+  var f = FLIGHTS[state.launched++ % FLIGHTS.length], decoy = Math.random() < GAME_CONFIG.decoyChance, fromLeft = Math.random() < 0.5;
   state.lanterns.push({
     x: fromLeft ? -8 : GAME_CONFIG.width + 8,
-    y: 30 + Math.random() * (GAME_CONFIG.height - 60),
-    vx: (fromLeft ? 1 : -1) * (GAME_CONFIG.lanternSpeed + Math.random() * 0.5),
+    y: f[0],
+    vx: (fromLeft ? 1 : -1) * GAME_CONFIG.lanternSpeed * f[1] / 100,
     sway: Math.random() * 6.28, decoy: decoy, size: decoy ? 5 : 6 + Math.floor(Math.random() * 3)
   });
 }

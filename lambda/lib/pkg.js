@@ -52,13 +52,14 @@ function readManifest(files) {
 function inspectPackage(buf) {
   const files = readPackage(buf);
   const manifest = readManifest(files);
-  const analysis = {};
+  const analysis = {}, references = {};
   for (const t of manifest.watermark.targets) {
     const a = wm.analyze(strFromU8(files[t]));
-    analysis[t] = { ok: a.ok, issues: a.issues, notes: a.notes, functions: a.functions.length, floats: a.floats, capacityBits: a.capacityBits };
+    references[t] = wm.semanticReference(strFromU8(files[t])); // L8 검출용 원본 데이터 표
+    analysis[t] = { ok: a.ok, issues: a.issues, notes: a.notes, functions: a.functions.length, floats: a.floats, capacityBits: a.capacityBits, semanticCarriers: references[t].carriers };
     if (!a.ok) throw new ValidationError(`${t} 가 워터마크 요구사항 미충족: ${a.issues.join("; ")}`, analysis);
   }
-  return { files, manifest, analysis };
+  return { files, manifest, analysis, references };
 }
 
 /** 한 협력사용 빌드: 대상 JS 에 mark 삽입 → 자체 추출로 검증 → 파일맵 + zip */

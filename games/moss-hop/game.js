@@ -24,17 +24,18 @@ var LEVEL = [
   [24, 70, 36, 6], [128, 66, 44, 6], [72, 46, 48, 6], [8, 32, 28, 6], [160, 34, 26, 6]
 ];
 
+// 씨앗 위치 [x, y], 딱정벌레 순찰 [x, y, 왼쪽 끝, 오른쪽 끝]. LEVEL 과 함께 L8 시맨틱 지문이 실리는 게임플레이 데이터
+var SEEDS = [[38, 102], [156, 102], [42, 64], [150, 60], [22, 26], [173, 28]];
+var BEETLES = [[90, 128, 64, 180], [80, 38, 72, 112]];
+
 var keys = {};
 
 function makeWorld() {
-  var seeds = [];
-  for (var i = 1; i < LEVEL.length && seeds.length < GAME_CONFIG.seedCount; i++) {
-    var p = LEVEL[i];
-    if (i !== 2 && i !== 6) seeds.push({ x: p[0] + p[2] / 2, y: p[1] - 6, got: false });
-  }
+  var seeds = SEEDS.map(function (s) { return { x: s[0], y: s[1], got: false }; });
+  var beetles = BEETLES.map(function (b, i) { return { x: b[0], y: b[1], dir: i % 2 ? -1 : 1, min: b[2], max: b[3] }; });
   return {
     hero: { x: 12, y: 120, vx: 0, vy: 0, w: 8, h: 8, ground: false, face: 1 },
-    beetles: [{ x: 90, y: 128, dir: 1, min: 64, max: 180 }, { x: 80, y: 38, dir: -1, min: 72, max: 112 }],
+    beetles: beetles,
     seeds: seeds, tick: 0, falls: 0, won: false, wonAt: 0
   };
 }

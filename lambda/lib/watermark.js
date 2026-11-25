@@ -8,6 +8,8 @@
 //   L5  소수 상수의 가수 최하위 24비트            리터럴마다 코드워드   8비트  minify·함수 이동·색 변경
 //   L6  줄 끝 공백 패턴 (줄 내용 해시로 슬롯 결정)  코드워드 16비트       8비트  주석만 손으로 지운 경우
 //   L7  렌더링된 화면 픽셀 (lib/outputmark.js)     코드워드 16비트       8비트  스크린샷(PNG)만 있을 때
+//   L8  게임플레이 데이터 표 ±1 (lib/semantic.js)   mark 별 비밀 패턴     상관 z  층을 아는 공격자 — 지우려면 게임이 바뀜
+//       (L8 검출에는 빌드 때 저장한 원본 레퍼런스가 필요: extract(code, { references: [ref] }))
 //
 // 코드워드 = (mark_id << 8) | HMAC-SHA256(secret, mark_id)[0]
 // 판정: 태그가 검증된 층들을 mark 별로 묶어 가중치(8비트 태그 = 1, L3 의 7비트 태그 = 0.5)를 더한다.
@@ -18,6 +20,7 @@ const acorn = require("acorn");
 const { generate } = require("astring");
 const crypto = require("crypto");
 const { shimSource } = require("./outputmark");
+const semantic = require("./semantic");
 
 const DEFAULT_SECRET = "codevault-demo-secret-v1";
 const ZW0 = "​"; // zero-width space      -> bit 0
@@ -228,6 +231,9 @@ function insert(code, markId, opts) {
     }
   }
 
+  // L8: 게임플레이 데이터 표 (시맨틱 지문)
+  if (!opts || opts.semantic !== false) semantic.embed(ast, markId, secret);
+
   // L7: 출력 지문 — 렌더링 후처리 코드를 붙인다 (화면 픽셀에 지문, lib/outputmark.js)
   if (!opts || opts.outputMark !== false) ast.body.push(...parse(shimSource(cw, secret)).body);
 
@@ -323,8 +329,14 @@ const LAYER_INFO = {
   L4: { name: "PALETTE 색 하위비트", bits: 16, tagBits: 8 },
   L5: { name: "소수 상수 미세값", bits: 16, tagBits: 8 },
   L6: { name: "줄 끝 공백 패턴", bits: 16, tagBits: 8 },
+  L8: { name: "게임 데이터 표 (시맨틱)", bits: 8, tagBits: 0 },
 };
-const weightOf = (k) => (LAYER_INFO[k].tagBits >= 8 ? 1 : 0.5);
+// 가중치: 8비트 태그 층 = 1, L3(7비트) = 0.5, L8 = 상관 z ≥ 8 이면 2 (단독 HIGH), z ≥ 5 이면 1
+const weightOf = (k, l) => (k === "L8" ? (l.z >= 8 ? 2 : 1) : LAYER_INFO[k].tagBits >= 8 ? 1 : 0.5);
+const chanceOf = (k, l) => (k === "L8" ? l.chance : 1 / Math.pow(2, LAYER_INFO[k].tagBits));
+
+/** 원본 코드 → L8 레퍼런스 (빌드할 때 저장해 두고, 유출본 검사 때 extract 에 넘긴다) */
+function semanticReference(code) { return semantic.reference(parse(code)); }
 
 /**
  * 유출본 분석.
@@ -344,13 +356,18 @@ function extract(code, opts) {
   const l4 = extractL4(ast); put("L4", l4 == null ? null : { raw: l4, ...splitCw(l4, secret) });
   const l5 = extractL5(ast, secret); put("L5", l5 && { ...l5, ...splitCw(l5.raw, secret) });
   const l6 = extractL6(code); put("L6", l6 && { ...l6, ...splitCw(l6.raw, secret) });
+  // L8: 레퍼런스가 여러 개면(게임·버전별) 가장 강한 상관을 쓴다
+  const refs = (opts && (opts.references || (opts.reference ? [opts.reference] : []))) || [];
+  let l8 = null;
+  for (const ref of refs) { const d = semantic.detect(ast, ref, secret); if (d && (!l8 || d.z > l8.z)) l8 = d; }
+  if (refs.length) put("L8", l8);
 
   // mark 별 가중치 합
   const groups = new Map();
   for (const [k, l] of Object.entries(layers)) {
     if (!l.present || !l.tagOk) continue;
     const g = groups.get(l.id) || { id: l.id, weight: 0, layers: [] };
-    g.weight += weightOf(k); g.layers.push(k);
+    g.weight += weightOf(k, l); g.layers.push(k);
     groups.set(l.id, g);
   }
   const ranked = [...groups.values()].sort((a, b) => b.weight - a.weight);
@@ -364,7 +381,7 @@ function extract(code, opts) {
       decision = "IDENTIFIED"; markId = best.id; agreeing = best.layers;
       dissenting = ranked.slice(1).flatMap((g) => g.layers);
       confidence = best.weight >= 1.5 && !dissenting.length ? "HIGH" : "MEDIUM";
-      chanceMatch = agreeing.reduce((p, k) => p / Math.pow(2, LAYER_INFO[k].tagBits), 1);
+      chanceMatch = agreeing.reduce((p, k) => p * chanceOf(k, layers[k]), 1);
     }
   }
   for (const l of Object.values(layers)) if (l.present) l.agrees = decision === "IDENTIFIED" && l.tagOk && l.id === markId;
@@ -379,7 +396,7 @@ function extract(code, opts) {
 }
 
 module.exports = {
-  insert, extract, analyze, codeword, tagFor,
+  insert, extract, analyze, codeword, tagFor, semanticReference,
   fnFingerprint, topFunctions, canonicalOrder, parse,
   LAYER_INFO,
   _internal: { intToPerm, permToInt, factorial, l5Encode, l5Decode, l5Eligible, fnv },

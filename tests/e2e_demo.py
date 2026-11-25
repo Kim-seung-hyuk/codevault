@@ -73,7 +73,7 @@ for game in ["comet-shower", "lantern-range", "moss-hop"]:
     with tempfile.TemporaryDirectory() as td:
         zp = Path(td) / "b.zip"
         zp.write_bytes(z.content)
-        for attack, expect in [("terser", "TRACED"), ("obfuscate", "TRACED"), ("scrub", "NONE")]:
+        for attack, expect in [("terser", "TRACED"), ("obfuscate", "TRACED"), ("scrub", "TRACED"), ("datascrub", "NONE")]:
             out = Path(td) / f"leak-{attack}.js"
             subprocess.run(["node", str(ROOT / "tools" / "make-leak.js"), str(zp), attack, "-o", str(out)], check=True, capture_output=True)
             print(f"[5/7] 유출본 검사 ({attack})")

@@ -43,7 +43,7 @@ async function processUpload(store, key) {
     const result = {
       job_id: jobId, status: "DONE", builds,
       game: { name: pkg.manifest.name, title: pkg.manifest.title, version: pkg.manifest.version, entry: pkg.manifest.entry || "index.html" },
-      analysis: pkg.analysis, elapsed_ms: Date.now() - started,
+      analysis: pkg.analysis, references: pkg.references, elapsed_ms: Date.now() - started,
     };
     await notify(result);
     return result;
