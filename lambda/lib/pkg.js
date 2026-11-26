@@ -73,6 +73,10 @@ function buildFor(pkg, markId, opts) {
       throw new Error(`자체 검증 실패 (${t}, mark ${markId})`);
     out[t] = strToU8(marked);
   }
+  // 배포본 manifest 에서 watermark 설정을 뺀다 (어느 파일에 지문이 있는지 공격자에게 알려 주지 않도록)
+  const pubManifest = { ...pkg.manifest };
+  delete pubManifest.watermark;
+  out["manifest.json"] = strToU8(JSON.stringify(pubManifest, null, 2));
   const zip = Buffer.from(zipSync(out, { level: 6, mtime: new Date("2026-01-01T00:00:00Z") }));
   return { files: out, zip, sha256: sha256(zip) };
 }
@@ -96,4 +100,10 @@ function leakSources(buf, filename) {
   return [{ name: filename || "leak.js", code: text }];
 }
 
-module.exports = { ValidationError, readPackage, readManifest, inspectPackage, buildFor, leakSources, mimeOf, sha256 };
+/** 빌드 zip 의 주 스크립트 (배포본 manifest 에는 watermark 설정이 없으므로 game.js → 첫 .js 순) */
+function mainScript(files) {
+  try { const t = JSON.parse(strFromU8(files["manifest.json"])).watermark; if (t && t.targets && files[t.targets[0]]) return t.targets[0]; } catch { /* 없음 */ }
+  return files["game.js"] ? "game.js" : Object.keys(files).find((n) => n.endsWith(".js"));
+}
+
+module.exports = { mainScript, ValidationError, readPackage, readManifest, inspectPackage, buildFor, leakSources, mimeOf, sha256 };

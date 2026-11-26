@@ -76,7 +76,7 @@ module.exports = { makeCanvas, render, blank, blitScaled, pageWith };
 
 if (require.main === module) {
   const om = require("../lambda/lib/outputmark");
-  const { readPackage, readManifest } = require("../lambda/lib/pkg");
+  const { readPackage, mainScript } = require("../lambda/lib/pkg");
   const args = process.argv.slice(2);
   const opt = (name, def) => { const i = args.indexOf(name); return i >= 0 ? args.splice(i, 2)[1] : def; };
   const out = opt("-o", null), scale = parseFloat(opt("--scale", "3")), frames = parseInt(opt("--frames", "120"), 10);
@@ -85,7 +85,7 @@ if (require.main === module) {
   let code;
   if (input.toLowerCase().endsWith(".zip")) {
     const files = readPackage(fs.readFileSync(input));
-    code = Buffer.from(files[readManifest(files).watermark.targets[0]]).toString("utf8");
+    code = Buffer.from(files[mainScript(files)]).toString("utf8");
   } else code = fs.readFileSync(input, "utf8");
   const shot = pageWith([render(code, frames)], scale);
   const dest = out || path.join(path.dirname(input), "screenshot-" + path.basename(input).replace(/\.(zip|js)$/i, "") + ".png");

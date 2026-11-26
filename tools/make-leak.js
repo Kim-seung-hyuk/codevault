@@ -5,7 +5,7 @@
 const fs = require("fs");
 const path = require("path");
 const atk = require("../tests/attacks");
-const { readPackage, readManifest } = require("../lambda/lib/pkg");
+const { readPackage, mainScript } = require("../lambda/lib/pkg");
 
 const ATTACKS = {
   none: async (c) => c,
@@ -30,7 +30,7 @@ const ATTACKS = {
   const buf = fs.readFileSync(input);
   if (input.toLowerCase().endsWith(".zip")) {
     const files = readPackage(buf);
-    const t = readManifest(files).watermark.targets[0];
+    const t = mainScript(files);
     code = Buffer.from(files[t]).toString("utf8");
   } else code = buf.toString("utf8");
   const leaked = await ATTACKS[attack](code);
