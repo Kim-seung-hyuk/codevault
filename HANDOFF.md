@@ -20,39 +20,42 @@
 - `npm test` — 게임 요구사항, 스모크, 코드 매트릭스 63건, L8 공격자 측정, 화면(L7) 26건, 블라인드 재구현 재생 테스트. 오지목 0
 - `npm run dev` 로 서버를 띄운 뒤 `npm run e2e` — 데모 장면 2~5, 7 재현
 
-## 2. AWS 배포 진행 상황
+## 2. AWS 배포 현황 — 동작 중 (2026-11-26)
 
-계정·환경 제약 (확인된 사실)
-- 리전: **us-east-1 (버지니아 북부)**
-- 수업 계정의 IAM 사용자(콘솔 로그인: 계정 ID + IAM 사용자 + 비밀번호). 팀 이름 `kmu-proj-02`
-- **CLI 액세스 키 발급 불가**(`iam:ListAccessKeys` 거부), `aws login` 도 브라우저에서 "잘못된 요청"으로 실패
-  → 이 PC 에서 AWS CLI 로 직접 배포할 수 없다. 사용자가 콘솔에서 작업하고, 서버 작업은 SSH 로 진행한다
-- AWS CLI v2.42.2 는 이 PC 에 설치됨(`C:\Program Files\Amazon\AWSCLIV2\aws.exe`), 자격 증명은 없음
-- EC2 용 인스턴스 프로파일 `SafeInstanceProfile-kmu-proj-02` 가 있음. 권한 범위(S3 접근 등)는 아직 미확인
-- Lambda "새 역할 생성"은 선택 시 오류 없음. 실제 생성·S3 권한 부여 가능 여부는 미확인
+구성: **S3 저장 + EC2 처리(`STORAGE_MODE=s3`, `PROCESSOR_MODE=inline`)**. Lambda 는 쓰지 않는다(아래 이유).
+브라우저 → S3 presigned 업로드 → EC2 가 `lambda/` 코드를 node 로 실행 → S3 `outputs/` → 화면 DONE.
+외부 `http://52.91.90.157/healthz` 200, 대시보드 표시 확인. SSH 터널로 돌린 `tests/e2e_demo.py` ALL PASS.
 
-EC2 — 기존 인스턴스를 재사용하기로 함 (사용자 결정)
-- AMI `nxtcloud-ami-v1.0.2` (수업 제공 이미지), vCPU 2, 11/11 생성 후 중지 상태였음, **키 페어 없음**
-- 접속 방법: 이 PC 에서 만든 SSH 키 `C:\Users\kimse\.ssh\codevault_ed25519`(개인 키는 이 PC 에만 있음)의 공개 키를
-  사용자가 Session Manager 브라우저 터미널에서 `authorized_keys` 에 등록 → 보안 그룹에 SSH 22(내 IP), HTTP 80(0.0.0.0/0) 추가
-- 공개 키: `ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIPm7RPjSy1Frx3CwsyNMt4WpbYqK/z0z+ycoy3nexT+u codevault-deploy`
+| 자원 | 값 |
+|---|---|
+| 리전 | us-east-1 |
+| EC2 | 이름 `codevault`, t3.small, Amazon Linux 2023, 퍼블릭 IP `52.91.90.157`(중지·시작하면 바뀜), 접속 `ec2-user` |
+| SSH 키 | `C:\Users\kimse\.ssh\kmuproj-02-key-codevault.pem` (이 PC 에만 있음) |
+| 보안 그룹 | SSH 22(내 IP), HTTP 80(0.0.0.0/0) |
+| 인스턴스 역할 | `SafeInstanceProfile-kmu-proj-02` → `SafeRole-kmu-proj-02`. 버킷 읽기·쓰기·삭제·presign 확인 |
+| S3 | `kmu-proj-02-s3`, 퍼블릭 차단 유지, CORS `http://52.91.90.157` (PUT/GET). 수명 주기 규칙은 아직 없음 |
+| 서버 | `/opt/codevault`(main clone), `/etc/codevault.env`, systemd `codevault`, PostgreSQL 로컬 |
 
-로컬에만 있는 것 (git 에 없음)
-- `infra/config.env` — `BUCKET=codevault-2a5ee0`, `CALLBACK_SECRET`, `WM_SECRET`, `REGION=us-east-1`. 비밀값은 이 파일에서만 확인
-- `dist/codevault-lambda.zip` — `npm run build:lambda` 로 다시 만든다 (핸들러 `index.handler`, Node.js 22.x)
+계정 제약 (확인된 사실)
+- CLI 액세스 키 발급 불가 → 콘솔 작업은 사용자, 서버 작업은 SSH
+- `iam:CreatePolicy` 는 `SafePowerUser` 정책이 명시적 거부 → Lambda 실행 역할에 S3 권한을 붙일 수 없어 inline 으로 결정(사용자 결정)
+- 인스턴스 역할로는 IAM 조회(ListRoles/GetRole/GetPolicy) 불가
 
-## 3. 남은 단계 (순서대로)
+자주 쓰는 명령 (Git Bash)
+- 접속: `ssh -i ~/.ssh/kmuproj-02-key-codevault.pem ec2-user@52.91.90.157`
+- 코드 반영: 서버에서 `sudo bash /opt/codevault/infra/deploy.sh`
+- 로그: `sudo journalctl -u codevault -n 50`
+- 원격 E2E: `ssh -i ... -N -L 18080:127.0.0.1:80 ec2-user@52.91.90.157` 를 띄우고 `python tests/e2e_demo.py http://127.0.0.1:18080`
+  (서버 DB 에 시험용 협력사·작업이 남는다)
 
-1. [사용자] 기존 EC2 시작 → Session Manager 로 공개 키 등록 → 보안 그룹 22/80 → 퍼블릭 IP 와 로그인 계정 이름(`ec2-user`/`ubuntu`) 알려 주기
-2. [Claude] SSH 접속 → 점검(OS, 메모리, `aws sts get-caller-identity` 로 인스턴스 역할, S3 접근)
-3. [사용자] S3 버킷 `codevault-2a5ee0` 생성 (CONSOLE_GUIDE 2단계, 수명 주기 규칙 4개)
-4. [Claude] SSH 로 `infra/ec2-bootstrap.sh` 실행 — `REGION=us-east-1 BUCKET=codevault-2a5ee0` 와 config.env 의 비밀값을 넘긴다.
-   부트스트랩 기본 리전이 ap-northeast-2 이므로 **REGION 을 꼭 넘길 것**. 스왑 1GB, PostgreSQL, systemd, 80 포트
-5. 인스턴스 역할로 S3 를 못 쓰면: `/etc/codevault.env` 를 `STORAGE_MODE=local`, `PROCESSOR_MODE=inline` 으로 바꿔 EC2 단독 데모 (README 5절)
-6. [사용자] Lambda 생성 (CONSOLE_GUIDE 4단계): 실행 역할 → zip 업로드 → 환경 변수 5개 → 비동기 재시도 2 → S3 트리거(uploads/, .zip)
-   역할 문제로 막히면 `PROCESSOR_MODE=inline` (EC2 가 같은 Lambda 코드를 node 로 실행)
-7. [사용자] S3 CORS 에 `http://<EC2 IP>` 추가 (CONSOLE_GUIDE 5단계)
-8. [Claude] `http://<EC2 IP>/healthz` 확인 → 웹에서 업로드 → DONE → 유출본 검사까지 실환경 검증
+로컬에만 있는 것 (git 에 없음): `infra/config.env` (BUCKET=kmu-proj-02-s3, 비밀값)
+
+## 3. 남은 단계
+
+1. (선택) S3 수명 주기 규칙 4개 — CONSOLE_GUIDE 2단계
+2. 발표 전 IP 고정이 필요하면 탄력적 IP (IP 가 바뀌면 S3 CORS 도 바꿔야 함)
+3. 발표 전 DB 정리가 필요하면 요청받아 진행 (E2E 시험 데이터가 있음)
+4. 발표 후 EC2 중지·정리. 콘솔에서 만들다 만 Lambda `codevault-watermark` 와 그 역할이 있으면 삭제
 
 ## 4. 주의
 
