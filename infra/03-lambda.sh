@@ -22,7 +22,7 @@ if aws lambda get-function --function-name "$LAMBDA_NAME" >/dev/null 2>&1; then
   aws lambda update-function-configuration --function-name "$LAMBDA_NAME" \
     --environment "$ENV" --timeout 60 --memory-size 512 >/dev/null
 else
-  aws lambda create-function --function-name "$LAMBDA_NAME" --runtime nodejs20.x --handler index.handler \
+  aws lambda create-function --function-name "$LAMBDA_NAME" --runtime nodejs22.x --handler index.handler \
     --role "$ROLE" --zip-file "fileb://$ZIP" --timeout 60 --memory-size 512 \
     --environment "$ENV" --description "CodeVault watermark builder" >/dev/null
 fi

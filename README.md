@@ -17,7 +17,7 @@ games/            오리지널 픽셀 게임 3개 (canvas + 순수 JS, 외부 �
   lantern-range/  표적 맞추기         — 함수 11개
   moss-hop/       한 화면 점프 플랫포머 — 함수 10개
                   각 폴더: index.html · game.js · manifest.json
-lambda/           워터마크 Lambda (Node 20) — S3 uploads/ 이벤트로 실행
+lambda/           워터마크 Lambda (Node 22) — S3 uploads/ 이벤트로 실행
   index.js        핸들러: 협력사별 빌드 → outputs/, 실패 → failed/, EC2 콜백
   extract-cli.js  유출본 추출 CLI (EC2 웹앱이 subprocess 로 호출, 같은 lib 사용)
   local-invoke.js S3 이벤트를 흉내 내 핸들러 실행 (로컬 데모 / IAM 없을 때 대안)

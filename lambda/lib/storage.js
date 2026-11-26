@@ -1,5 +1,5 @@
 // storage.js — S3 또는 로컬 폴더(데모/개발용)를 같은 인터페이스로 감싼다.
-//   STORAGE_MODE=s3     : AWS SDK v3 (Lambda nodejs20.x 런타임에 기본 포함) 사용
+//   STORAGE_MODE=s3     : AWS SDK v3 (Lambda nodejs22.x 런타임에 기본 포함) 사용
 //   STORAGE_MODE=local  : LOCAL_STORAGE_DIR/<key> 파일로 저장 (버킷 = 폴더)
 const fs = require("fs");
 const path = require("path");
