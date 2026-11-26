@@ -77,7 +77,15 @@ SessionLocal = sessionmaker(bind=engine, expire_on_commit=False)
 
 
 def init_db() -> None:
-    Base.metadata.create_all(engine)
+    # uvicorn 워커 여러 개가 동시에 create_all 을 돌리면 PostgreSQL 에서 pg_type 중복 오류가 난다.
+    # advisory lock 으로 한 워커씩 순서대로 실행한다(뒤 워커는 이미 있는 테이블을 건너뜀).
+    if engine.dialect.name == "postgresql":
+        from sqlalchemy import text
+        with engine.begin() as conn:
+            conn.execute(text("SELECT pg_advisory_xact_lock(727001)"))
+            Base.metadata.create_all(conn)
+    else:
+        Base.metadata.create_all(engine)
 
 
 def get_db():
