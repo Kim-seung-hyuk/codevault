@@ -9,7 +9,8 @@
     "test": "npm run check && node tests/smoke-games.js && node tests/run-matrix.js && node tests/semantic-attack.js && node tests/output-mark.js && node tests/comet-watermark-replay.cjs",
     "e2e": "python tests/e2e_demo.py",
     "dev": "cd webapp && python -m uvicorn app.main:app --reload --port 8000",
-    "test:replay": "node tests/comet-watermark-replay.cjs"
+    "test:replay": "node tests/comet-watermark-replay.cjs",
+    "build:lambda": "node tools/build-lambda-zip.js"
   },
   "keywords": [],
   "author": "",
